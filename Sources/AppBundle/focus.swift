@@ -146,11 +146,23 @@ extension Workspace {
     if hasFocusChanged {
         _ = await onFocusChanged(.defaultEnv, CmdIoImpl.emptyStdinIgnoringOut, focus)
     }
-    if let _prevFocusedWorkspaceName, hasFocusedWorkspaceChanged {
-        onWorkspaceChanged(_prevFocusedWorkspaceName, frozenFocus.workspaceName, focus)
+if hasFocusedWorkspaceChanged {
+        moveStickyWindowsToFocusedWorkspace(focus)
+        if let _prevFocusedWorkspaceName {
+            onWorkspaceChanged(_prevFocusedWorkspaceName, frozenFocus.workspaceName)
+        }
     }
     if hasFocusedMonitorChanged {
         _ = await onFocusedMonitorChanged(.defaultEnv, CmdIoImpl.emptyStdinIgnoringOut, focus)
+    }
+}
+
+@MainActor private func moveStickyWindowsToFocusedWorkspace(_ newFocus: LiveFocus) {
+    let targetWorkspace = newFocus.workspace
+    for workspace in Workspace.all where workspace != targetWorkspace {
+        for window in workspace.floatingWindows where window.isSticky {
+            window.bindAsFloatingWindow(to: targetWorkspace)
+        }
     }
 }
 
@@ -170,7 +182,7 @@ extension Workspace {
     return await config.onFocusChanged.run(env.withFocus(focus), io)
 }
 
-@MainActor private func onWorkspaceChanged(_ oldWorkspace: String, _ newWorkspace: String, _ focus: LiveFocus) {
+@MainActor private func onWorkspaceChanged(_ oldWorkspace: String, _ newWorkspace: String) {
     broadcastEvent(.workspaceChanged(
         workspace: newWorkspace,
         prevWorkspace: oldWorkspace,
@@ -182,14 +194,7 @@ extension Workspace {
         var environment = config.execConfig.envVariables
         environment[AEROSPACE_FOCUSED_WORKSPACE] = newWorkspace
         environment[AEROSPACE_PREV_WORKSPACE] = oldWorkspace
-        switch focus.asLeaf {
-            case .emptyWorkspace(let w):
-                environment[AEROSPACE_WORKSPACE] = w.name
-                environment[AEROSPACE_WINDOW_ID] = nil
-            case .window(let w):
-                environment[AEROSPACE_WORKSPACE] = nil
-                environment[AEROSPACE_WINDOW_ID] = w.windowId.description
-        }
+        environment[AEROSPACE_WORKSPACE] = newWorkspace
         process.environment = environment
         _ = Result { try process.run() }
     }

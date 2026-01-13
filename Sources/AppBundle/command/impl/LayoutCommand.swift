@@ -62,7 +62,8 @@ struct LayoutCommand: Command {
                 switch node {
                     case .tilingContainer:
                         return .succ // Nothing to do
-                    case .floatingWindowsContainer(let container):
+case .floatingWindowsContainer(let container):
+                        window.isSticky = false
                         window.lastFloatingSize = (try? await window.getAxSize(.nonCancellable)) ?? window.lastFloatingSize
                         guard let workspace = container.nodeWorkspace else { return .fail(io.err(bugPrompt())) }
                         do {
@@ -74,10 +75,29 @@ struct LayoutCommand: Command {
                 }
             case .floating:
                 guard let window = target.windowOrNil else { return .fail(io.err(noWindowIsFocused)) }
+                window.isSticky = false  // Clear sticky when explicitly setting floating
                 let workspace = target.workspace
                 window.bindAsFloatingWindow(to: workspace)
                 if let size = window.lastFloatingSize { window.setAxFrame(nil, size) }
                 return .succ
+            case .sticky:
+                guard let parent = window.parent else { return .fail }
+                switch parent.cases {
+                    case .macosPopupWindowsContainer:
+                        return .fail(io.err("Can't make popup windows sticky"))
+                    case .macosMinimizedWindowsContainer, .macosFullscreenWindowsContainer, .macosHiddenAppsWindowsContainer:
+                        return .fail(io.err("Can't make macOS minimized, fullscreen, or hidden app windows sticky"))
+                    case .tilingContainer:
+                        window.lastFloatingSize = try await window.getAxSize() ?? window.lastFloatingSize
+                        let workspace = target.workspace
+                        window.bindAsFloatingWindow(to: workspace)
+                        if let size = window.lastFloatingSize { window.setAxFrame(nil, size) }
+                        window.isSticky = true
+                        return .succ
+                    case .workspace:
+                        window.isSticky = !window.isSticky
+                        return .succ
+                }
         }
     }
 }
@@ -113,6 +133,8 @@ extension ConventionalWindowParentCases {
             case .v_tiles:     tilingContainerOrNil.map { $0.layout == .tiles && $0.orientation == .v } == true
             case .tiling:      tilingContainerOrNil != nil
             case .floating:    floatingWindowsContainerOrNil != nil
+            case .sticky:      isSticky
+        }
         }
     }
 }
