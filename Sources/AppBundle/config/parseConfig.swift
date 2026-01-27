@@ -116,6 +116,7 @@ private let configParser: [String: any ParserProtocol<Config>] = [
     "accordion-padding": Parser(\.accordionPadding, parseInt),
     persistentWorkspacesKey: Parser(\.persistentWorkspaces, parsePersistentWorkspaces),
     "exec-on-workspace-change": Parser(\.execOnWorkspaceChange, parseArrayOfStrings),
+    "ignore-focus-from": Parser(\.ignoreFocusFrom, parseIgnoreFocusFrom),
     "exec": Parser(\.execConfig, parseExecConfig),
 
     keyMappingConfigRootKey: Parser(\.keyMapping, skipParsing(Config().keyMapping)), // Parsed manually
@@ -360,6 +361,10 @@ private func parseArrayOfStrings(_ raw: Json, _ backtrace: ConfigBacktrace) -> P
                 parseString(elem, backtrace + .index(index))
             }
         }
+}
+
+private func parseIgnoreFocusFrom(_ raw: Json, _ backtrace: ConfigBacktrace) -> ParsedConfig<Set<String>> {
+    parseArrayOfStrings(raw, backtrace).map { Set($0) }
 }
 
 private func parseDefaultContainerOrientation(_ raw: Json, _ backtrace: ConfigBacktrace) -> ParsedConfig<DefaultContainerOrientation> {
