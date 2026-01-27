@@ -66,7 +66,7 @@ struct LayoutCommand: Command {
                         window.isSticky = true
                         return .succ
                     case .workspace:
-                        window.isSticky = !window.isSticky
+                        window.isSticky.toggle()
                         return .succ
                 }
         }
