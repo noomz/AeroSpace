@@ -148,6 +148,7 @@ private let configParser: [String: any ParserProtocol<Config>] = [
     "accordion-padding": Parser(\.accordionPadding, parseInt),
     persistentWorkspacesKey: Parser(\.persistentWorkspaces, parsePersistentWorkspaces),
     "exec-on-workspace-change": Parser(\.execOnWorkspaceChange, parseArrayOfStrings),
+    "ignore-focus-from": Parser(\.ignoreFocusFrom, parseIgnoreFocusFrom),
     "exec": Parser(\.execConfig, parseExecConfig),
 
     keyMappingConfigRootKey: Parser(\.keyMapping, skipParsing(Config().keyMapping)), // Parsed manually
@@ -411,7 +412,11 @@ private func parseArrayOfStrings(_ raw: OrderedJson, _ backtrace: ConfigBacktrac
         }
 }
 
-private func parseDefaultContainerOrientation(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<DefaultContainerOrientation> {
+private func parseIgnoreFocusFrom(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ParsedConfig<Set<String>> {
+    parseArrayOfStrings(raw, backtrace).map { Set($0) }
+}
+
+private func parseDefaultContainerOrientation(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ParsedConfig<DefaultContainerOrientation> {
     parseString(raw, backtrace).flatMap {
         DefaultContainerOrientation(rawValue: $0)
             .toResult(.init(backtrace, "Can't parse default container orientation '\($0)'"))
