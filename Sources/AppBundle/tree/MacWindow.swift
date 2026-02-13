@@ -175,11 +175,16 @@ final class MacWindow: Window {
                 newY = newY.coerce(in: workspaceRect.minY ... max(workspaceRect.minY, workspaceRect.maxY - windowHeight))
 
                 setAxFrame(CGPoint(x: newX, y: newY), nil)
+                self.prevUnhiddenProportionalPositionInsideWorkspaceRect = nil
+            case .tiling, .rootTilingContainer:
+                // Tiling windows are positioned by layoutRecursive, safe to clear
+                self.prevUnhiddenProportionalPositionInsideWorkspaceRect = nil
             case .macosNativeFullscreenWindow, .macosNativeHiddenAppWindow, .macosNativeMinimizedWindow,
-                 .macosPopupWindow, .tiling, .rootTilingContainer, .shimContainerRelation: break
+                 .macosPopupWindow, .shimContainerRelation:
+                // Preserve saved position — window is in a temporary macOS state and will
+                // need the position when it returns to floating
+                break
         }
-
-        self.prevUnhiddenProportionalPositionInsideWorkspaceRect = nil
     }
 
     override var isHiddenInCorner: Bool {
