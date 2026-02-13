@@ -197,6 +197,11 @@ private func layoutWorkspaces() async throws {
         let corner = monitorToOptimalHideCorner[workspace.workspaceMonitor.rect.topLeftCorner] ?? .bottomRightCorner
         for window in workspace.allLeafWindowsRecursive {
             let macWindow = window as! MacWindow // todo as!
+            // Skip windows in special macOS states - they're already invisible/handled by macOS
+            // and their position was already saved when entering the macOS state
+            if case .macos = window.layoutReason {
+                continue
+            }
             if window.isSticky {
                 // Sticky windows should remain visible - don't hide them
                 macWindow.unhideFromCorner()

@@ -118,25 +118,39 @@ final class MacWindow: Window {
         macApp.closeAndUnregisterAxWindow(windowId)
     }
 
+    /// Save the current window position so it can be restored later by unhideFromCorner.
+    /// This is useful when a floating window enters a temporary macOS state (hidden/fullscreen/minimized)
+    /// while the workspace is visible (so hideInCorner was never called).
+    @MainActor
+    func saveFloatingPositionIfNeeded() async throws {
+        guard !isHiddenInCorner else { return }
+        guard let windowRect = try await getAxRect(.cancellable) else { return }
+        // Check for isHiddenInCorner for the second time because of the suspension point above
+        guard !isHiddenInCorner else { return }
+        let topLeftCorner = windowRect.topLeftCorner
+        let monitorRect = windowRect.center.monitorApproximation.rect
+        let absolutePoint = topLeftCorner - monitorRect.topLeftCorner
+        let proportionalX = absolutePoint.x / monitorRect.width
+        let proportionalY = absolutePoint.y / monitorRect.height
+        // Reject positions that look like AeroSpace hide corners.
+        // Hide corners place window's top-left at the monitor's bottom edge (proportionalY >= ~1.0).
+        // This protects against saving wrong positions after macOS wake from sleep
+        // when windows might temporarily be reported at corner positions.
+        let looksLikeHideCorner = proportionalY > 0.95
+        if looksLikeHideCorner { return }
+        prevUnhiddenProportionalPositionInsideWorkspaceRect =
+            CGPoint(x: proportionalX, y: proportionalY)
+        if isFloating {
+            lastFloatingSize = windowRect.size
+        }
+    }
+
     // todo it's part of the window layout and should be moved to layoutRecursive.swift
     @MainActor
     func hideInCorner(_ corner: OptimalHideCorner) async throws {
         guard let nodeMonitor else { return }
         // Don't accidentally override prevUnhiddenEmulationPosition in case of subsequent `hideInCorner` calls
-        if !isHiddenInCorner {
-            guard let windowRect = try await getAxRect(.cancellable) else { return }
-            // Check for isHiddenInCorner for the second time because of the suspension point above
-            if !isHiddenInCorner {
-                let topLeftCorner = windowRect.topLeftCorner
-                let monitorRect = windowRect.center.monitorApproximation.rect // Similar to layoutFloatingWindow. Non idempotent
-                let absolutePoint = topLeftCorner - monitorRect.topLeftCorner
-                prevUnhiddenProportionalPositionInsideWorkspaceRect =
-                    CGPoint(x: absolutePoint.x / monitorRect.width, y: absolutePoint.y / monitorRect.height)
-                if isFloating {
-                    lastFloatingSize = windowRect.size
-                }
-            }
-        }
+        try await saveFloatingPositionIfNeeded()
         let p: CGPoint
         switch corner {
             case .bottomLeftCorner:
