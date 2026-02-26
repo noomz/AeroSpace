@@ -235,7 +235,12 @@ private func unbindAndGetBindingDataForNewWindow(_ windowId: UInt32, _ macApp: M
     return switch try await macApp.getAxUiElementWindowType(windowId, windowLevel, cm) {
         case .popup: BindingData(parent: macosPopupWindowsContainer, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
         case .dialog: BindingData(parent: workspace.floatingWindowsContainer, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
-        case .window: unbindAndGetBindingDataForNewTilingWindow(workspace, window: window)
+        case .window:
+            // Pre-check: if on-window-detected callbacks will make this window floating/sticky,
+            // bind as floating from the start to avoid a tiling flash (other windows resizing momentarily)
+            willCallbackMakeFloating(macApp)
+                ? BindingData(parent: workspace.floatingWindowsContainer, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
+                : unbindAndGetBindingDataForNewTilingWindow(workspace, window: window)
     }
 }
 
@@ -257,6 +262,43 @@ private func unbindAndGetBindingDataForNewTilingWindow(_ workspace: Workspace, w
             index: INDEX_BIND_LAST,
         )
     }
+}
+
+/// Pre-check whether on-window-detected callbacks will make a window floating or sticky.
+/// Uses only app-level matchers (app-id, app-name) since the window doesn't exist yet.
+/// This avoids binding as tiling first and then immediately converting to floating,
+/// which causes a visible flash where other tiled windows resize momentarily.
+@MainActor
+private func willCallbackMakeFloating(_ macApp: MacApp) -> Bool {
+    for callback in config.onWindowDetected {
+        // Skip callbacks that only apply during startup if we're not in startup (and vice versa)
+        if let startupMatcher = callback.matcher.duringAeroSpaceStartup, startupMatcher != isStartup {
+            continue
+        }
+        // Match app-id
+        if let appId = callback.matcher.appId, appId != macApp.rawAppBundleId {
+            continue
+        }
+        // Match app-name
+        if let regex = callback.matcher.appNameRegexSubstring, !(macApp.name ?? "").contains(caseInsensitiveRegex: regex) {
+            continue
+        }
+        // Can't pre-check window-title or workspace matchers without the window object.
+        // If the callback has those matchers, skip the optimization to avoid false positives.
+        if callback.matcher.windowTitleRegexSubstring != nil || callback.matcher.workspace != nil {
+            continue
+        }
+        // Check if any command in this callback is `layout floating` or `layout sticky`
+        for command in callback.run {
+            if command.info.kind == .layout, let layoutCmd = command as? LayoutCommand {
+                let descriptions = layoutCmd.args.toggleBetween.val
+                if descriptions.contains(.floating) || descriptions.contains(.sticky) {
+                    return true
+                }
+            }
+        }
+    }
+    return false
 }
 
 @MainActor
