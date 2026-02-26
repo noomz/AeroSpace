@@ -165,6 +165,8 @@ extension Workspace {
     let targetWorkspace = newFocus.workspace
     for workspace in Workspace.all where workspace != targetWorkspace {
         for window in workspace.floatingWindows where window.isSticky {
+            // Skip windows that have been destroyed but not yet garbage collected
+            guard window is MacWindow, MacWindow.allWindowsMap[window.windowId] != nil else { continue }
             window.bindAsFloatingWindow(to: targetWorkspace)
         }
     }
