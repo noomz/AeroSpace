@@ -125,7 +125,8 @@ final class MacWindow: Window {
     func saveFloatingPositionIfNeeded() async throws {
         guard !isHiddenInCorner else { return }
         guard let windowRect = try await getAxRect(.cancellable) else { return }
-        // Check for isHiddenInCorner for the second time because of the suspension point above
+        // Check again after the suspension point above. Another hideInCorner/unhideFromCorner
+        // cycle may have already saved the correct position while this AX read was awaiting.
         guard !isHiddenInCorner else { return }
         let topLeftCorner = windowRect.topLeftCorner
         let monitorRect = windowRect.center.monitorApproximation.rect
