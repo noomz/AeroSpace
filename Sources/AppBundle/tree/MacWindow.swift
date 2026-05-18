@@ -123,27 +123,40 @@ final class MacWindow: Window {
     /// while the workspace is visible (so hideInCorner was never called).
     @MainActor
     func saveFloatingPositionIfNeeded() async throws {
+        guard !screenSleepWakeInProgress else { return }
         guard !isHiddenInCorner else { return }
+        guard let workspace = nodeWorkspace else { return }
+        let workspaceRect = workspace.workspaceMonitor.rect
+        let visibleRect = workspace.workspaceMonitor.visibleRect
         guard let windowRect = try await getAxRect(.cancellable) else { return }
         // Check again after the suspension point above. Another hideInCorner/unhideFromCorner
         // cycle may have already saved the correct position while this AX read was awaiting.
+        guard !screenSleepWakeInProgress else { return }
         guard !isHiddenInCorner else { return }
+        prevUnhiddenProportionalPositionInsideWorkspaceRect = floatingPositionSnapshot(
+            windowRect: windowRect,
+            workspaceRect: workspaceRect,
+            visibleRect: visibleRect,
+        )
+    }
+
+    private func floatingPositionSnapshot(windowRect: Rect, workspaceRect: Rect, visibleRect: Rect) -> CGPoint? {
+        if workspaceRect.width <= 0 || workspaceRect.height <= 0 { return nil }
+
         let topLeftCorner = windowRect.topLeftCorner
-        let monitorRect = windowRect.center.monitorApproximation.rect
-        let absolutePoint = topLeftCorner - monitorRect.topLeftCorner
-        let proportionalX = absolutePoint.x / monitorRect.width
-        let proportionalY = absolutePoint.y / monitorRect.height
+        let absolutePoint = topLeftCorner - workspaceRect.topLeftCorner
+        let snapshot = CGPoint(x: absolutePoint.x / workspaceRect.width, y: absolutePoint.y / workspaceRect.height)
+
         // Reject positions that look like AeroSpace hide corners.
-        // Hide corners place window's top-left at the monitor's bottom edge (proportionalY >= ~1.0).
-        // This protects against saving wrong positions after macOS wake from sleep
-        // when windows might temporarily be reported at corner positions.
-        let looksLikeHideCorner = proportionalY > 0.95
-        if looksLikeHideCorner { return }
-        prevUnhiddenProportionalPositionInsideWorkspaceRect =
-            CGPoint(x: proportionalX, y: proportionalY)
-        if isFloating {
-            lastFloatingSize = windowRect.size
-        }
+        // Hide corners place window's top-left at visible monitor bottom edge, sometimes outside X bounds.
+        // This protects against saving wrong positions after macOS wake from sleep.
+        let tolerance: CGFloat = 5
+        let isNearBottomEdge = topLeftCorner.y >= visibleRect.maxY - tolerance
+        let isNearRightHideCorner = topLeftCorner.x >= visibleRect.maxX - tolerance
+        let isNearLeftHideCorner = topLeftCorner.x + windowRect.width <= visibleRect.minX + tolerance
+        let looksLikeHideCorner = snapshot.y > 0.95 ||
+            (isNearBottomEdge && (isNearLeftHideCorner || isNearRightHideCorner))
+        return looksLikeHideCorner ? nil : snapshot
     }
 
     // todo it's part of the window layout and should be moved to layoutRecursive.swift

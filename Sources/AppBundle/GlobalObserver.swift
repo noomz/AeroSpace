@@ -1,6 +1,10 @@
 import AppKit
 import Common
 
+@MainActor var screenSleepWakeInProgress = false
+@MainActor private var screenSleepWakeTask: Task<Void, any Error>? = nil
+private let screenSleepWakeSettleDelay: Duration = .milliseconds(1000)
+
 enum GlobalObserver {
     private static func onNotif(_ notification: Notification) {
         let bundleId = (notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier
@@ -58,6 +62,22 @@ Task.startUnstructured { @MainActor in
         }
     }
 
+    private static func onScreenSleepWake(_ notification: Notification) {
+        let notifName = notification.name.rawValue
+        let isSleepNotification = notification.name == NSWorkspace.screensDidSleepNotification
+        Task { @MainActor in
+            if !TrayMenuModel.shared.isEnabled { return }
+            screenSleepWakeInProgress = true
+            screenSleepWakeTask?.cancel()
+            if isSleepNotification { return }
+            screenSleepWakeTask = Task { @MainActor in
+                try await Task.sleep(for: screenSleepWakeSettleDelay)
+                screenSleepWakeInProgress = false
+                scheduleCancellableCompleteRefreshSession(.globalObserver(notifName))
+            }
+        }
+    }
+
     @MainActor
     static func initObserver() {
         let nc = NSWorkspace.shared.notificationCenter
@@ -67,6 +87,18 @@ Task.startUnstructured { @MainActor in
         nc.addObserver(forName: NSWorkspace.didUnhideApplicationNotification, object: nil, queue: .main, using: onNotif)
         nc.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main, using: onNotif)
         nc.addObserver(forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main, using: onNotif)
+        nc.addObserver(
+            forName: NSWorkspace.screensDidSleepNotification,
+            object: nil,
+            queue: .main,
+            using: onScreenSleepWake,
+        )
+        nc.addObserver(
+            forName: NSWorkspace.screensDidWakeNotification,
+            object: nil,
+            queue: .main,
+            using: onScreenSleepWake,
+        )
 
         NSEvent.addGlobalMonitorForEvents(matching: .leftMouseUp) { _ in
             // todo reduce number of refreshSession in the callback
