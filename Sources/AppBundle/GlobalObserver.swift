@@ -66,12 +66,13 @@ Task.startUnstructured { @MainActor in
         let notifName = notification.name.rawValue
         let isSleepNotification = notification.name == NSWorkspace.screensDidSleepNotification
         Task { @MainActor in
-            if !TrayMenuModel.shared.isEnabled { return }
             screenSleepWakeInProgress = true
+            cancelCancellableCompleteRefreshSession()
             screenSleepWakeTask?.cancel()
             if isSleepNotification { return }
             screenSleepWakeTask = Task { @MainActor in
-                try await Task.sleep(for: screenSleepWakeSettleDelay)
+                try? await Task.sleep(for: screenSleepWakeSettleDelay)
+                if Task.isCancelled { return }
                 screenSleepWakeInProgress = false
                 scheduleCancellableCompleteRefreshSession(.globalObserver(notifName))
             }

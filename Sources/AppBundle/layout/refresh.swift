@@ -9,6 +9,7 @@ func scheduleCancellableCompleteRefreshSession(
     _ event: RefreshSessionEvent,
     optimisticallyPreLayoutWorkspaces: Bool = false,
 ) {
+    if screenSleepWakeInProgress { return }
     activeRefreshTask?.cancel()
     activeRefreshTask = Task.startUnstructured { @MainActor in
         try checkCancellation()
@@ -21,6 +22,12 @@ func scheduleCancellableCompleteRefreshSession(
 }
 
 @MainActor
+func cancelCancellableCompleteRefreshSession() {
+    activeRefreshTask?.cancel()
+    activeRefreshTask = nil
+}
+
+@MainActor
 func runHeavyCompleteRefreshSession(
     _ event: RefreshSessionEvent,
     assumeCancellable: Bool,
@@ -30,6 +37,7 @@ func runHeavyCompleteRefreshSession(
     let state = signposter.beginInterval(#function, "event: \(event) axTaskLocalAppThreadToken: \(axTaskLocalAppThreadToken?.idForDebug)")
     defer { signposter.endInterval(#function, state) }
     if !TrayMenuModel.shared.isEnabled { return }
+    if screenSleepWakeInProgress { return }
     let res = await Result {
         try await $refreshSessionEvent.withValue(event) {
             let nativeFocused = try await getNativeFocusedWindow(.cancellable)
@@ -154,6 +162,7 @@ enum OptimalHideCorner {
 
 @MainActor
 private func layoutWorkspaces() async throws {
+    if screenSleepWakeInProgress { return }
     if !TrayMenuModel.shared.isEnabled {
         for workspace in Workspace.all {
             workspace.allLeafWindowsRecursive.forEach { ($0 as! MacWindow).unhideFromCorner() } // todo as!
