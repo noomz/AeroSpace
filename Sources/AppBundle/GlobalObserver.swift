@@ -2,7 +2,7 @@ import AppKit
 import Common
 
 @MainActor var screenSleepWakeInProgress = false
-@MainActor private var screenSleepWakeTask: Task<Void, any Error>? = nil
+@MainActor private var screenSleepWakeTask: Task<Void, Never>? = nil
 private let screenSleepWakeSettleDelay: Duration = .milliseconds(1000)
 
 enum GlobalObserver {
@@ -68,10 +68,12 @@ enum GlobalObserver {
         Task { @MainActor in
             if !TrayMenuModel.shared.isEnabled { return }
             screenSleepWakeInProgress = true
+            cancelCancellableCompleteRefreshSession()
             screenSleepWakeTask?.cancel()
             if isSleepNotification { return }
             screenSleepWakeTask = Task { @MainActor in
-                try await Task.sleep(for: screenSleepWakeSettleDelay)
+                try? await Task.sleep(for: screenSleepWakeSettleDelay)
+                if Task.isCancelled { return }
                 screenSleepWakeInProgress = false
                 scheduleCancellableCompleteRefreshSession(.globalObserver(notifName))
             }
