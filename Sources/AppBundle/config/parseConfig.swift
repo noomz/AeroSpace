@@ -368,10 +368,6 @@ private func parseArrayOfStrings(_ raw: Json, _ backtrace: ConfigBacktrace) -> P
         }
 }
 
-private func parseIgnoreFocusFrom(_ raw: Json, _ backtrace: ConfigBacktrace) -> ParsedConfig<Set<String>> {
-    parseArrayOfStrings(raw, backtrace).map { Set($0) }
-}
-
 private func parseDefaultContainerOrientation(_ raw: Json, _ backtrace: ConfigBacktrace) -> ParsedConfig<DefaultContainerOrientation> {
     parseString(raw, backtrace).flatMap {
         DefaultContainerOrientation(rawValue: $0)
