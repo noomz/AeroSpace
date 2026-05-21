@@ -117,7 +117,6 @@ private let configParser: [String: any ParserProtocol<Config>] = [
     persistentWorkspacesKey: Parser(\.persistentWorkspaces, parsePersistentWorkspaces),
     "ignore-focus-from": Parser(\.ignoreFocusFrom, parseIgnoreFocusFrom),
     "exec-on-workspace-change": Parser(\.execOnWorkspaceChange, parseArrayOfStrings),
-    "ignore-focus-from": Parser(\.ignoreFocusFrom, parseIgnoreFocusFrom),
     "exec": Parser(\.execConfig, parseExecConfig),
 
     keyMappingConfigRootKey: Parser(\.keyMapping, skipParsing(Config().keyMapping)), // Parsed manually
