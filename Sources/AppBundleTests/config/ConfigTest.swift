@@ -470,7 +470,7 @@ final class ConfigTest: XCTestCase {
             ignore-focus-from = ['valid', 123]
             """,
         )
-        assertEquals(errors, ["ignore-focus-from[1]: Expected type is 'string'. But actual type is 'integer'"])
+        assertEquals(errors, ["ignore-focus-from[1]: Expected type is 'string'. But actual type is 'int'"])
     }
 
     func testParseKeyMapping() {

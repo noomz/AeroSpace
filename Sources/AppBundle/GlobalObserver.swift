@@ -18,18 +18,11 @@ enum GlobalObserver {
         let notifName = notification.name.rawValue
         Task { @MainActor in
             if !TrayMenuModel.shared.isEnabled { return }
-
-            // When an ignored app tries to steal focus, restore focus to the previous window
-            if let bundleId, config.ignoreFocusFrom.contains(bundleId),
-               notifName == NSWorkspace.didActivateApplicationNotification.rawValue
+            if notifName == NSWorkspace.didActivateApplicationNotification.rawValue,
+               ignoreFocusFromAppIfNeeded(bundleId: bundleId)
             {
-                // Restore focus to the previously focused window
-                if let prevWindow = prevFocus?.windowOrNil {
-                    prevWindow.nativeFocus()
-                }
                 return
             }
-
             if notifName == NSWorkspace.didActivateApplicationNotification.rawValue {
                 scheduleCancellableCompleteRefreshSession(.globalObserver(notifName), optimisticallyPreLayoutWorkspaces: true)
             } else {
