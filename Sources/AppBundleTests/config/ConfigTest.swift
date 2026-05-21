@@ -406,23 +406,57 @@ final class ConfigTest: XCTestCase {
         ])
     }
 
-    func testParseOnWindowDetected2() {
-        let result = parseConfig(
+    func testWindowDetectedPreFloatRespectsUncheckableStopCallbacks() {
+        let (parsed, errors) = parseConfig(
             """
-            on-window-detected = [
-                { check-further-callbacks = true, run = '', },
-            ]
+            [[on-window-detected]]
+                if.app-id = 'com.thomasricouard.IceCubesApp'
+                if.window-title-regex-substring = '^Ice Cubes$'
+                check-further-callbacks = false
+                run = ['move-node-to-workspace S']
+
+            [[on-window-detected]]
+                if.app-id = 'com.thomasricouard.IceCubesApp'
+                run = ['layout floating', 'move-node-to-workspace S']
             """,
         )
-        assertEquals(result.config.onWindowDetected, [
-            WindowDetectedCallback(
-                matcher: .command(.empty),
-                checkFurtherCallbacks: true,
-                rawRun: .empty,
-            ),
-        ])
+        assertEquals(errors, [])
 
-        assertEquals(result.errors, [])
+        let oldConfig = config
+        config = parsed
+        defer { config = oldConfig }
+
+        assertEquals(
+            willCallbackMakeFloatingBeforeWindowExists(
+                appBundleId: "com.thomasricouard.IceCubesApp",
+                appName: "Ice Cubes",
+            ),
+            false,
+        )
+    }
+
+    func testWindowDetectedPreFloatAllowsCertainFloatingCallback() {
+        let (parsed, errors) = parseConfig(
+            """
+            [[on-window-detected]]
+                if.app-id = 'com.thomasricouard.IceCubesApp'
+                run = ['layout floating', 'move-node-to-workspace S']
+            """,
+        )
+        assertEquals(errors, [])
+
+        let oldConfig = config
+        config = parsed
+        defer { config = oldConfig }
+
+        assertEquals(
+            willCallbackMakeFloatingBeforeWindowExists(
+                appBundleId: "com.thomasricouard.IceCubesApp",
+                appName: "Ice Cubes",
+            ),
+            true,
+        )
+>>>>>>> ccea8533 (Make window-detected pre-float conservative)
     }
 
     func testParseInlineTables() {
