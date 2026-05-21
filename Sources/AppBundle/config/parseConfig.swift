@@ -147,6 +147,7 @@ private let configParser: [String: any ParserProtocol<Config>] = [
     "automatically-unhide-macos-hidden-apps": Parser(\.automaticallyUnhideMacosHiddenApps, parseBool),
     "accordion-padding": Parser(\.accordionPadding, parseInt),
     persistentWorkspacesKey: Parser(\.persistentWorkspaces, parsePersistentWorkspaces),
+    "ignore-focus-from": Parser(\.ignoreFocusFrom, parseIgnoreFocusFrom),
     "exec-on-workspace-change": Parser(\.execOnWorkspaceChange, parseArrayOfStrings),
     "ignore-focus-from": Parser(\.ignoreFocusFrom, parseIgnoreFocusFrom),
     "exec": Parser(\.execConfig, parseExecConfig),
