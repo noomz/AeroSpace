@@ -109,7 +109,28 @@ final class FocusCommandTest: XCTestCase {
         assertEquals(focus.windowOrNil?.windowId, 2)
     }
 
-    func testFocusOverFloatingWindows() async {
+    func testNativeFocusOfStickyWindowDoesNotSwitchWorkspace() {
+        let workspaceA = Workspace.get(byName: "a")
+        let workspaceB = Workspace.get(byName: "b")
+        let sticky = TestWindow.new(id: 1, parent: workspaceB)
+        sticky.isSticky = true
+
+        assertEquals(workspaceB.focusWorkspace(), true)
+        updateFocusCache(sticky)
+        assertEquals(focus.workspace, workspaceB)
+        assertEquals(sticky.nodeWorkspace, workspaceB)
+
+        assertEquals(workspaceA.focusWorkspace(), true)
+        assertEquals(focus.workspace, workspaceA)
+        assertEquals(sticky.nodeWorkspace, workspaceB)
+
+        updateFocusCache(sticky)
+        assertEquals(focus.windowOrNil, sticky)
+        assertEquals(focus.workspace, workspaceA)
+        assertEquals(sticky.nodeWorkspace, workspaceA)
+    }
+
+    func testFocusOverFloatingWindows() async throws {
         assertEquals(focus.windowOrNil, nil)
         Workspace.get(byName: name).floatingWindowsContainer.apply {
             TestWindow.new(id: 1, parent: $0, rect: Rect(topLeftX: 0, topLeftY: 0, width: 100, height: 100))

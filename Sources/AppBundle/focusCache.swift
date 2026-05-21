@@ -21,9 +21,11 @@ func ignoreFocusFromAppIfNeeded(bundleId: String?) -> Bool {
     if ignoreFocusFromAppIfNeeded(bundleId: nativeFocused?.app.rawAppBundleId) {
         return
     }
-    if nativeFocused?.windowId != lastKnownNativeFocusedWindowId {
+    let shouldUpdateFocus = nativeFocused?.windowId != lastKnownNativeFocusedWindowId
+        || nativeFocused.map { $0.isSticky && ($0.nodeWorkspace != focus.workspace || focus.windowOrNil != $0) } == true
+    if shouldUpdateFocus {
         _ = nativeFocused?.focusWindow()
         lastKnownNativeFocusedWindowId = nativeFocused?.windowId
     }
-    nativeFocused?.macAppUnsafe.lastNativeFocusedWindowId = nativeFocused?.windowId
+    (nativeFocused?.app as? MacApp)?.lastNativeFocusedWindowId = nativeFocused?.windowId
 }
