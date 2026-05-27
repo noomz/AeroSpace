@@ -118,10 +118,13 @@ final class MacApp: AbstractApp {
 
     // todo merge together with detectNewWindows
     func getFocusedWindow(_ cm: CancellationMode) async throws -> Window? {
-        let windowId = try await thread?.runInLoop(cm) { [nsApp, axApp, windows] job in
-            try axApp.threadGuarded.get(Ax.focusedWindowAttr)
-                .flatMap { try windows.threadGuarded.getOrRegisterAxWindow(windowId: $0.windowId, $0.ax.cast, nsApp, job) }?
-                .windowId
+        let windowId = try await thread?.runInLoop(cm) { [nsApp, axApp, windows] (job) -> UInt32? in
+            guard let axApp = axApp.threadGuardedIfAlive else { return nil }
+            guard var windowsValue = windows.threadGuardedIfAlive else { return nil }
+            let window = try axApp.get(Ax.focusedWindowAttr)
+                .flatMap { try windowsValue.getOrRegisterAxWindow(windowId: $0.windowId, $0.ax.cast, nsApp, job) }
+            windows.threadGuarded = windowsValue
+            return window?.windowId
         }
         guard let windowId else { return nil }
         return try await MacWindow.getOrRegister(windowId: windowId, macApp: self)
@@ -173,7 +176,7 @@ final class MacApp: AbstractApp {
 
     func getAxWindowsCount(_ cm: CancellationMode) async throws -> Int? {
         try await thread?.runInLoop(cm) { [axApp] job in
-            axApp.threadGuarded.get(Ax.windowsAttr)?.count
+            axApp.threadGuardedIfAlive?.get(Ax.windowsAttr)?.count
         }
     }
 
@@ -234,7 +237,8 @@ final class MacApp: AbstractApp {
 
     func dumpAppAxInfo(_ cm: CancellationMode) async throws -> [String: Json] {
         try await thread?.runInLoop(cm) { [axApp] job in
-            dumpAxRecursive(axApp.threadGuarded, .app)
+            guard let axApp = axApp.threadGuardedIfAlive else { return [:] }
+            return dumpAxRecursive(axApp, .app)
         } ?? [:]
     }
 
@@ -304,7 +308,8 @@ final class MacApp: AbstractApp {
         }
         guard let thread else { return [] }
         let (alive, dead) = try await thread.runInLoop(.cancellable) { [nsApp, windows, axApp] (job) -> ([UInt32], [UInt32]) in
-            var alive: [UInt32: AxWindow] = windows.threadGuarded
+            guard var alive = windows.threadGuardedIfAlive else { return ([], []) }
+            guard let axApp = axApp.threadGuardedIfAlive else { return ([], []) }
             var dead = [UInt32: AxWindow]()
             // Second line of defence against lock screen. See the first line of defence: closedWindowsCache
             // Second and third lines of defence are technically needed only to avoid potential flickering
@@ -315,7 +320,7 @@ final class MacApp: AbstractApp {
                 }
             }
 
-            for (id, window) in axApp.threadGuarded.get(Ax.windowsAttr) ?? [] {
+            for (id, window) in axApp.get(Ax.windowsAttr) ?? [] {
                 try job.checkCancellation()
                 try alive.getOrRegisterAxWindow(windowId: id, window, nsApp, job)
             }
@@ -346,14 +351,16 @@ final class MacApp: AbstractApp {
         _ body: @Sendable @escaping (AXUIElement, RunLoopJob) throws -> T?,
     ) async throws -> T? {
         try await thread?.runInLoop(cm) { [windows] job in
-            guard let window = windows.threadGuarded[windowId] else { return nil }
+            guard let windows = windows.threadGuardedIfAlive else { return nil }
+            guard let window = windows[windowId] else { return nil }
             return try body(window.ax, job)
         }
     }
 
     private func withWindowAsync(_ windowId: UInt32, _ cm: CancellationMode, _ body: @Sendable @escaping (AXUIElement, RunLoopJob) throws -> ()) -> RunLoopJob {
         thread?.runInLoopAsync(job: RunLoopJob(cm)) { [windows] job in
-            guard let window = windows.threadGuarded[windowId] else { return }
+            guard let windows = windows.threadGuardedIfAlive else { return }
+            guard let window = windows[windowId] else { return }
             try? body(window.ax, job)
         } ?? .cancelled
     }
