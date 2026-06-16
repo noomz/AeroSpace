@@ -98,6 +98,9 @@ case .floatingWindowsContainer(let container):
                     case .workspace:
                         window.isSticky = true  // Mark as sticky
                         return .succ
+                    case .floatingWindowsContainer:
+                        window.isSticky.toggle()
+                        return .succ
                 }
         }
     }
