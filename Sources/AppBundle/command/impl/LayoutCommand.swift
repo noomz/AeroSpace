@@ -135,6 +135,5 @@ extension ConventionalWindowParentCases {
             case .floating:    floatingWindowsContainerOrNil != nil
             case .sticky:      isSticky
         }
-        }
     }
 }

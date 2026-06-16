@@ -456,7 +456,6 @@ final class ConfigTest: XCTestCase {
             ),
             true,
         )
->>>>>>> ccea8533 (Make window-detected pre-float conservative)
     }
 
     func testParseInlineTables() {
