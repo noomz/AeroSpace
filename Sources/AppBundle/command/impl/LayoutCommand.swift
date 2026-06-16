@@ -95,7 +95,7 @@ case .floatingWindowsContainer(let container):
                         window.isSticky = true
                         return .succ
                     case .workspace:
-                        window.isSticky.toggle()
+                        window.isSticky = true  // Mark as sticky
                         return .succ
                 }
         }
@@ -133,7 +133,7 @@ extension ConventionalWindowParentCases {
             case .v_tiles:     tilingContainerOrNil.map { $0.layout == .tiles && $0.orientation == .v } == true
             case .tiling:      tilingContainerOrNil != nil
             case .floating:    floatingWindowsContainerOrNil != nil
-            case .sticky:      isSticky
+            case .sticky:      false  // Can't determine stickiness from parent container alone
         }
     }
 }

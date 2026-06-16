@@ -287,29 +287,37 @@ private func unbindAndGetBindingDataForNewTilingWindow(_ workspace: Workspace, w
 @MainActor
 func willCallbackMakeFloatingBeforeWindowExists(appBundleId: String?, appName: String?) -> Bool {
     for callback in config.onWindowDetected {
-        if let startupMatcher = callback.matcher.duringAeroSpaceStartup, startupMatcher != isStartup {
-            continue
-        }
-        if let appId = callback.matcher.appId, appId != appBundleId {
-            continue
-        }
-        if let regex = callback.matcher.appNameRegexSubstring, !(appName ?? "").contains(caseInsensitiveRegex: regex) {
-            continue
-        }
+        switch callback.matcher {
+            case .command:
+                // Can't pre-check command-based matchers without the window object.
+                // If checkFurtherCallbacks is false, we must assume the callback might make the window floating.
+                if !callback.checkFurtherCallbacks { return callback.makesWindowFloatingOrSticky }
+                continue
+            case .legacy(let legacy):
+                if let startupMatcher = legacy.duringAeroSpaceStartup, startupMatcher != isStartup {
+                    continue
+                }
+                if let appId = legacy.appId, appId != appBundleId {
+                    continue
+                }
+                if let regex = legacy.appNameRegexSubstring, !(appName ?? "").contains(caseInsensitiveRegex: regex) {
+                    continue
+                }
 
-        let hasMatchersThatNeedWindow = callback.matcher.windowTitleRegexSubstring != nil ||
-            callback.matcher.workspace != nil
-        if hasMatchersThatNeedWindow {
-            if !callback.checkFurtherCallbacks {
-                return false
-            }
-            continue
-        }
-        if callback.makesWindowFloatingOrSticky {
-            return true
-        }
-        if !callback.checkFurtherCallbacks {
-            return false
+                let hasMatchersThatNeedWindow = legacy.windowTitleRegexSubstring != nil ||
+                    legacy.workspace != nil
+                if hasMatchersThatNeedWindow {
+                    if !callback.checkFurtherCallbacks {
+                        return false
+                    }
+                    continue
+                }
+                if callback.makesWindowFloatingOrSticky {
+                    return true
+                }
+                if !callback.checkFurtherCallbacks {
+                    return false
+                }
         }
     }
     return false
