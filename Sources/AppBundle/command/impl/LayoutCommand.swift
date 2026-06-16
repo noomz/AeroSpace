@@ -81,6 +81,7 @@ case .floatingWindowsContainer(let container):
                 if let size = window.lastFloatingSize { window.setAxFrame(nil, size) }
                 return .succ
             case .sticky:
+                guard let window = target.windowOrNil else { return .fail(io.err(noWindowIsFocused)) }
                 guard let parent = window.parent else { return .fail }
                 switch parent.cases {
                     case .macosPopupWindowsContainer:
