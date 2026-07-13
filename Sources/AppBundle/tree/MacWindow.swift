@@ -325,8 +325,8 @@ func willCallbackMakeFloatingBeforeWindowExists(appBundleId: String?, appName: S
 
 private extension WindowDetectedCallback {
     var makesWindowFloatingOrSticky: Bool {
-        run.contains { command in
-            guard command.info.kind == .layout, let layoutCmd = command as? LayoutCommand else { return false }
+        run.flatten().contains { command in
+            guard command.info.kind == CmdKind.layout, let layoutCmd = command as? LayoutCommand else { return false }
             let descriptions = layoutCmd.args.toggleBetween.val
             return descriptions.contains(.floating) || descriptions.contains(.sticky)
         }

@@ -89,7 +89,7 @@ case .floatingWindowsContainer(let container):
                     case .macosMinimizedWindowsContainer, .macosFullscreenWindowsContainer, .macosHiddenAppsWindowsContainer:
                         return .fail(io.err("Can't make macOS minimized, fullscreen, or hidden app windows sticky"))
                     case .tilingContainer:
-                        window.lastFloatingSize = try await window.getAxSize() ?? window.lastFloatingSize
+                        window.lastFloatingSize = (try? await window.getAxSize(.nonCancellable)) ?? window.lastFloatingSize
                         let workspace = target.workspace
                         window.bindAsFloatingWindow(to: workspace)
                         if let size = window.lastFloatingSize { window.setAxFrame(nil, size) }
