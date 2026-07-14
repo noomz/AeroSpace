@@ -289,9 +289,12 @@ func willCallbackMakeFloatingBeforeWindowExists(appBundleId: String?, appName: S
     for callback in config.onWindowDetected {
         switch callback.matcher {
             case .command:
-                // Can't pre-check command-based matchers without the window object.
-                // If checkFurtherCallbacks is false, we must assume the callback might make the window floating.
-                if !callback.checkFurtherCallbacks { return callback.makesWindowFloatingOrSticky }
+                // Command matchers (`if = 'test ...'`) depend on window properties (title,
+                // workspace) that don't exist pre-creation, so we cannot confirm this callback
+                // actually matches. Never pre-float on an unconfirmed match: otherwise the first
+                // float/sticky command-rule in the config pre-floats EVERY window of EVERY app,
+                // and tiling-only callbacks (layout accordion/tiles) then hit "non-tiling" and
+                // can't recover it. Genuinely-floating apps still float via the real callback.
                 continue
             case .legacy(let legacy):
                 if let startupMatcher = legacy.duringAeroSpaceStartup, startupMatcher != isStartup {

@@ -407,7 +407,7 @@ final class ConfigTest: XCTestCase {
     }
 
     func testWindowDetectedPreFloatRespectsUncheckableStopCallbacks() {
-        let (parsed, errors) = parseConfig(
+        let parseResult = parseConfig(
             """
             [[on-window-detected]]
                 if.app-id = 'com.thomasricouard.IceCubesApp'
@@ -420,6 +420,8 @@ final class ConfigTest: XCTestCase {
                 run = ['layout floating', 'move-node-to-workspace S']
             """,
         )
+        let parsed = parseResult.config
+        let errors = parseResult.errors
         assertEquals(errors, [])
 
         let oldConfig = config
@@ -436,13 +438,15 @@ final class ConfigTest: XCTestCase {
     }
 
     func testWindowDetectedPreFloatAllowsCertainFloatingCallback() {
-        let (parsed, errors) = parseConfig(
+        let parseResult = parseConfig(
             """
             [[on-window-detected]]
                 if.app-id = 'com.thomasricouard.IceCubesApp'
                 run = ['layout floating', 'move-node-to-workspace S']
             """,
         )
+        let parsed = parseResult.config
+        let errors = parseResult.errors
         assertEquals(errors, [])
 
         let oldConfig = config
@@ -455,6 +459,38 @@ final class ConfigTest: XCTestCase {
                 appName: "Ice Cubes",
             ),
             true,
+        )
+    }
+
+    func testWindowDetectedPreFloatIgnoresCommandMatchers() {
+        // A command-matcher float/sticky rule must NOT pre-float unrelated apps. The matcher
+        // can't be evaluated before the window exists, so an unconfirmed match must not float.
+        let parseResult = parseConfig(
+            """
+            [[on-window-detected]]
+                if = 'test %{app-bundle-id} = com.bitwarden.desktop'
+                run = ['layout sticky']
+
+            [[on-window-detected]]
+                if = 'test %{app-bundle-id} = com.hnc.Discord'
+                run = ['move-node-to-workspace 2', 'layout accordion']
+            """,
+        )
+        let parsed = parseResult.config
+        let errors = parseResult.errors
+        assertEquals(errors, [])
+
+        let oldConfig = config
+        config = parsed
+        defer { config = oldConfig }
+
+        // Discord must not be pre-floated by the earlier Bitwarden sticky rule.
+        assertEquals(
+            willCallbackMakeFloatingBeforeWindowExists(
+                appBundleId: "com.hnc.Discord",
+                appName: "Discord",
+            ),
+            false,
         )
     }
 
@@ -719,22 +755,22 @@ func testAfterLoginCommandDeprecation() {
     }
 
     func testIgnoreFocusFromParsing() {
-        let (config, errors) = parseConfig(
+        let parseResult = parseConfig(
             """
             ignore-focus-from = ['com.logi.pluginservice', 'com.example.app']
             """,
         )
-        assertEquals(errors, [])
-        assertEquals(config.ignoreFocusFrom, Set(["com.logi.pluginservice", "com.example.app"]))
+        assertEquals(parseResult.errors, [])
+        assertEquals(parseResult.config.ignoreFocusFrom, Set(["com.logi.pluginservice", "com.example.app"]))
     }
 
     func testIgnoreFocusFromTypeMismatch() {
-        let (_, errors) = parseConfig(
+        let parseResult = parseConfig(
             """
             ignore-focus-from = ['valid', 123]
             """,
         )
-        assertEquals(errors, ["ignore-focus-from[1]: Expected type is 'string'. But actual type is 'int'"])
+        assertEquals(parseResult.strErrors, ["[ERROR] ignore-focus-from[1]: Expected type is 'String'. But actual type is 'Int'"])
     }
 
     func testParseKeyMapping() {
