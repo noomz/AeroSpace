@@ -9,6 +9,16 @@ import Common
 /// so that once the screen is unlocked, AeroSpace could restore windows to where they were
 @MainActor private var closedWindowsCache = FrozenWorld(workspaces: [], monitors: [], windowIds: [])
 
+/// Whether the screen is locked right now. See: onScreenLocked, onScreenUnlocked
+@MainActor private var isScreenLocked = false
+/// Whether the screen was locked at any point since closedWindowsCache was captured.
+///
+/// The cache exists only to survive the lock screen. macOS reuses window IDs of closed windows for brand new windows,
+/// so if the cache was never "tested" by a lock screen, a matching window ID means a new window that got a recycled ID,
+/// not a window that came back from the lock screen. Restoring the cache in that case moves the new window (and
+/// everything else in the cache) to wherever the dead window used to be. https://github.com/nikitabobko/AeroSpace/issues/2234
+@MainActor private var screenWasLockedSinceCaching = false
+
 struct FrozenMonitor: Sendable {
     let topLeftCorner: CGPoint
     let visibleWorkspace: String
@@ -48,10 +58,21 @@ struct FrozenWorkspace: Sendable {
         monitors: monitorInfos.map(FrozenMonitor.init),
         windowIds: allWindowIds,
     )
+    // If the screen is locked, the window died because of the lock screen (or at least it's indistinguishable from it)
+    screenWasLockedSinceCaching = isScreenLocked
+}
+
+@MainActor func onScreenLocked() {
+    isScreenLocked = true
+    screenWasLockedSinceCaching = true
+}
+
+@MainActor func onScreenUnlocked() {
+    isScreenLocked = false
 }
 
 @MainActor func restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: Window) async throws -> Bool {
-    if !closedWindowsCache.windowIds.contains(newlyDetectedWindow.windowId) {
+    if !screenWasLockedSinceCaching || !closedWindowsCache.windowIds.contains(newlyDetectedWindow.windowId) {
         return false
     }
     let monitors = monitorInfos
@@ -123,4 +144,5 @@ private func restoreTreeRecursive(frozenContainer: FrozenContainer, parent: NonL
 // and with mouse manipulations
 @MainActor func resetClosedWindowsCache() {
     closedWindowsCache = FrozenWorld(workspaces: [], monitors: [], windowIds: [])
+    screenWasLockedSinceCaching = false
 }
