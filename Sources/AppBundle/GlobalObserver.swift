@@ -94,6 +94,15 @@ Task.startUnstructured { @MainActor in
             using: onScreenSleepWake,
         )
 
+        // Lock screen makes all windows "die" from the accessibility API point of view. See: closedWindowsCache
+        let dnc = DistributedNotificationCenter.default()
+        dnc.addObserver(forName: .init("com.apple.screenIsLocked"), object: nil, queue: .main) { _ in
+            Task.startUnstructured { @MainActor in onScreenLocked() }
+        }
+        dnc.addObserver(forName: .init("com.apple.screenIsUnlocked"), object: nil, queue: .main) { _ in
+            Task.startUnstructured { @MainActor in onScreenUnlocked() }
+        }
+
         NSEvent.addGlobalMonitorForEvents(matching: .leftMouseUp) { _ in
             // todo reduce number of refreshSession in the callback
             //  resetManipulatedWithMouseIfPossible might call its own refreshSession
