@@ -120,7 +120,9 @@ final class FocusCommandTest: XCTestCase {
         assertEquals(focus.workspace, workspaceB)
         assertEquals(sticky.nodeWorkspace, workspaceB)
 
+        let other = TestWindow.new(id: 2, parent: workspaceA.rootTilingContainer)
         assertEquals(workspaceA.focusWorkspace(), true)
+        updateFocusCache(other)
         assertEquals(focus.workspace, workspaceA)
         assertEquals(sticky.nodeWorkspace, workspaceB)
 
@@ -128,6 +130,24 @@ final class FocusCommandTest: XCTestCase {
         assertEquals(focus.windowOrNil, sticky)
         assertEquals(focus.workspace, workspaceA)
         assertEquals(sticky.nodeWorkspace, workspaceA)
+    }
+
+    func testStaleNativeFocusOfStickyWindowDoesNotStealFocusAfterWorkspaceSwitch() {
+        let workspaceA = Workspace.get(byName: "a")
+        let workspaceB = Workspace.get(byName: "b")
+        let sticky = TestWindow.new(id: 1, parent: workspaceA)
+        sticky.isSticky = true
+        let other = TestWindow.new(id: 2, parent: workspaceB.rootTilingContainer)
+
+        assertEquals(workspaceA.focusWorkspace(), true)
+        updateFocusCache(sticky)
+        assertEquals(focus.windowOrNil, sticky)
+
+        // AeroSpace switches workspace, but macOS still reports the sticky window as focused
+        assertEquals(workspaceB.focusWorkspace(), true)
+        updateFocusCache(sticky)
+        assertEquals(focus.workspace, workspaceB)
+        assertEquals(focus.windowOrNil, other)
     }
 
     func testFocusOverFloatingWindows() async throws {
