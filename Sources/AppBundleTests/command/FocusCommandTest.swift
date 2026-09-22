@@ -112,7 +112,7 @@ final class FocusCommandTest: XCTestCase {
     func testNativeFocusOfStickyWindowDoesNotSwitchWorkspace() {
         let workspaceA = Workspace.get(byName: "a")
         let workspaceB = Workspace.get(byName: "b")
-        let sticky = TestWindow.new(id: 1, parent: workspaceB)
+        let sticky = TestWindow.new(id: 1, parent: workspaceB.floatingWindowsContainer)
         sticky.isSticky = true
 
         assertEquals(workspaceB.focusWorkspace(), true)
@@ -135,7 +135,7 @@ final class FocusCommandTest: XCTestCase {
     func testStaleNativeFocusOfStickyWindowDoesNotStealFocusAfterWorkspaceSwitch() {
         let workspaceA = Workspace.get(byName: "a")
         let workspaceB = Workspace.get(byName: "b")
-        let sticky = TestWindow.new(id: 1, parent: workspaceA)
+        let sticky = TestWindow.new(id: 1, parent: workspaceA.floatingWindowsContainer)
         sticky.isSticky = true
         let other = TestWindow.new(id: 2, parent: workspaceB.rootTilingContainer)
 
