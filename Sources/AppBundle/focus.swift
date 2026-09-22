@@ -76,10 +76,7 @@ private struct FrozenFocus: AeroAny, Equatable, Sendable {
 }
 extension Window {
     @MainActor func focusWindow() -> Bool {
-        // For sticky windows, move to current workspace first instead of switching workspaces
-        if isSticky, nodeWorkspace != focus.workspace {
-            bindAsFloatingWindow(to: focus.workspace)
-        }
+        bindStickyWindowToVisibleWorkspace()
         if let focus = toLiveFocusOrNil() {
             return setFocus(to: focus)
         } else {
@@ -87,6 +84,12 @@ extension Window {
             //      and retry to focus the window. Otherwise, it's not possible to focus minimized/hidden windows
             return false
         }
+    }
+
+    /// Sticky windows stay on the monitor they are on: they live on that monitor's active workspace
+    @MainActor func bindStickyWindowToVisibleWorkspace() {
+        guard isSticky, let workspace = nodeWorkspace, !workspace.isVisible else { return }
+        bindAsFloatingWindow(to: workspace.workspaceMonitor.activeWorkspace)
     }
 
     @MainActor func toLiveFocusOrNil() -> LiveFocus? { visualWorkspace.map { LiveFocus(windowOrNil: self, workspace: $0) } }
@@ -151,7 +154,6 @@ extension Workspace {
         onFocusChanged(focus)
     }
     if hasFocusedWorkspaceChanged {
-        moveStickyWindowsToFocusedWorkspace(focus)
         if let _prevFocusedWorkspaceName {
             onWorkspaceChanged(_prevFocusedWorkspaceName, frozenFocus.workspaceName)
         }
@@ -161,13 +163,12 @@ extension Workspace {
     }
 }
 
-@MainActor private func moveStickyWindowsToFocusedWorkspace(_ newFocus: LiveFocus) {
-    let targetWorkspace = newFocus.workspace
-    for workspace in Workspace.all where workspace != targetWorkspace {
+@MainActor func moveStickyWindowsToVisibleWorkspaces() {
+    for workspace in Workspace.all where !workspace.isVisible {
         for window in workspace.floatingWindows where window.isSticky {
             // Skip windows that have been destroyed but not yet garbage collected
             guard window is MacWindow, MacWindow.allWindowsMap[window.windowId] != nil else { continue }
-            window.bindAsFloatingWindow(to: targetWorkspace)
+            window.bindStickyWindowToVisibleWorkspace()
         }
     }
 }

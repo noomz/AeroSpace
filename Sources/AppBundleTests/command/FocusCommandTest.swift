@@ -85,6 +85,21 @@ final class FocusCommandTest: XCTestCase {
         assertEquals(sticky.nodeWorkspace, workspaceA)
     }
 
+    func testFocusByWindowIdSummonsStickyWindowToFocusedWorkspace() async throws {
+        let workspaceA = Workspace.get(byName: "a")
+        let workspaceB = Workspace.get(byName: "b")
+        let sticky = TestWindow.new(id: 1, parent: workspaceB)
+        sticky.isSticky = true
+        TestWindow.new(id: 2, parent: workspaceA.rootTilingContainer)
+        assertEquals(workspaceA.focusWorkspace(), true)
+
+        let result = try await parseCommand("focus --window-id 1").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        assertEquals(result.exitCode.rawValue, 0)
+        assertEquals(focus.windowOrNil, sticky)
+        assertEquals(focus.workspace, workspaceA)
+        assertEquals(sticky.nodeWorkspace, workspaceA)
+    }
+
     func testStaleNativeFocusOfStickyWindowDoesNotStealFocusAfterWorkspaceSwitch() {
         let workspaceA = Workspace.get(byName: "a")
         let workspaceB = Workspace.get(byName: "b")

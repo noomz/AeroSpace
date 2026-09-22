@@ -122,6 +122,7 @@ struct RunSessionGuard: Sendable {
 
 @MainActor
 func refreshModel() {
+    moveStickyWindowsToVisibleWorkspaces()
     Workspace.garbageCollectUnusedWorkspaces()
     checkOnFocusChangedCallbacks()
     normalizeContainers()
