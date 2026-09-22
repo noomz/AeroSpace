@@ -34,6 +34,10 @@ struct FocusCommand: Command {
                 }
             case .windowId(let windowId):
                 if let windowToFocus = Window.get(byId: windowId) {
+                    // Summon sticky windows to the focused workspace instead of switching workspaces
+                    if windowToFocus.isSticky, windowToFocus.nodeWorkspace != target.workspace {
+                        windowToFocus.bindAsFloatingWindow(to: target.workspace)
+                    }
                     return .from(bool: windowToFocus.focusWindow())
                 } else {
                     return .fail(io.err("Can't find window with ID \(windowId)"))

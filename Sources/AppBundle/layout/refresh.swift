@@ -118,6 +118,7 @@ struct RunSessionGuard: Sendable {
 
 @MainActor
 func refreshModel_nonCancellable() async {
+    moveStickyWindowsToVisibleWorkspaces()
     if refreshSessionEvent?.isFocusFollowsMouse == true {
         await checkOnFocusChangedCallbacks_nonCancellable()
     } else {
