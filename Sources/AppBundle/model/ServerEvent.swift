@@ -1,6 +1,6 @@
 import Common
 
-public struct ServerEvent: Codable, Sendable {
+public struct ServerEvent: Codable, Sendable, Equatable {
     private let _event: ServerEventType
 
     // periphery:ignore - false positive unused warning. The var properties are serialized to JSON
@@ -40,6 +40,28 @@ public struct ServerEvent: Codable, Sendable {
 
     public static func windowDetected(windowId: UInt32, workspace: String?, appBundleId: String?, appName: String?) -> ServerEvent {
         ServerEvent(_event: .windowDetected, windowId: windowId, workspace: workspace, appBundleId: appBundleId, appName: appName)
+    }
+
+    /// `prevWorkspace == nil`: the window's first appearance, after `on-window-detected` callbacks ran
+    public static func windowMoved(
+        windowId: UInt32,
+        workspace: String,
+        prevWorkspace: String?,
+        appBundleId: String?,
+        appName: String?,
+    ) -> ServerEvent {
+        ServerEvent(
+            _event: .windowMoved,
+            windowId: windowId,
+            workspace: workspace,
+            prevWorkspace: prevWorkspace,
+            appBundleId: appBundleId,
+            appName: appName,
+        )
+    }
+
+    public static func windowClosed(windowId: UInt32, workspace: String, appBundleId: String?) -> ServerEvent {
+        ServerEvent(_event: .windowClosed, windowId: windowId, workspace: workspace, appBundleId: appBundleId)
     }
 
     public static func bindingTriggered(mode: String, binding: String) -> ServerEvent {
