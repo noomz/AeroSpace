@@ -50,6 +50,13 @@ window-detected:: Fired when a new window is detected. Includes `windowId`, `wor
 
 binding-triggered:: Fired when a keyboard binding is triggered. Includes `binding`, `mode`.
 
+window-moved:: Fired when a window lands on a workspace other than its last one, however it got there (a command, a mouse drag, a callback), and when a window first appears.
+Includes `windowId`, `workspace`, `prevWorkspace`, `appBundleId`, `appName`.
+`prevWorkspace` is absent on first appearance, which is reported after `on-window-detected` callbacks ran.
+Moves within a workspace, sticky windows and windows present when AeroSpace starts are not reported; nothing is reported while the screen is locked.
+
+window-closed:: Fired when a window is closed. Includes `windowId`, `workspace` (its last one), `appBundleId`.
+
 // =========================================================== Output Format
 include::util/conditional-output-format-header.adoc[]
 

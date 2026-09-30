@@ -53,6 +53,7 @@ func runHeavyCompleteRefreshSession(
             updateTrayText()
             SecureInputPanel.shared.refresh()
             try await normalizeLayoutReason()
+            checkWindowEvents(endOfHeavySession: true)
             if shouldLayoutWorkspaces { try await layoutWorkspaces() }
         }
     }
@@ -126,6 +127,7 @@ func refreshModel_nonCancellable() async {
         await checkOnFocusChangedCallbacks_nonCancellable()
         normalizeContainers()
     }
+    checkWindowEvents(endOfHeavySession: false)
 }
 
 @MainActor

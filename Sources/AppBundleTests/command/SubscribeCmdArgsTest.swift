@@ -13,6 +13,21 @@ final class SubscribeCmdArgsTest: XCTestCase {
         }
     }
 
+    func testParseWindowMovedAndClosed() {
+        let result = parseSubscribeCmdArgs(["window-moved", "window-closed"].slice)
+        switch result {
+            case .cmd(let args):
+                assertEquals(args.events, Set([.windowMoved, .windowClosed]))
+            case .help, .failure:
+                XCTFail("Expected success")
+        }
+    }
+
+    func testAllIncludesWindowMovedAndClosed() {
+        XCTAssertTrue(ServerEventType.allCases.contains(.windowMoved))
+        XCTAssertTrue(ServerEventType.allCases.contains(.windowClosed))
+    }
+
     func testParseAllFlag() {
         let result = parseSubscribeCmdArgs(["--all"].slice)
         switch result {

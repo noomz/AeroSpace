@@ -85,6 +85,15 @@ final class ClientServerTest: XCTestCase {
 
             (.bindingTriggered(mode: "main", binding: "alt-h"),
              #"{"_event":"binding-triggered","binding":"alt-h","mode":"main"}"#),
+
+            (.windowMoved(windowId: 4211, workspace: "T", prevWorkspace: "1", appBundleId: "net.kovidgoyal.kitty", appName: "kitty"),
+             #"{"_event":"window-moved","appBundleId":"net.kovidgoyal.kitty","appName":"kitty","prevWorkspace":"1","windowId":4211,"workspace":"T"}"#),
+
+            (.windowMoved(windowId: 4380, workspace: "T", prevWorkspace: nil, appBundleId: "net.kovidgoyal.kitty", appName: "kitty"),
+             #"{"_event":"window-moved","appBundleId":"net.kovidgoyal.kitty","appName":"kitty","windowId":4380,"workspace":"T"}"#),
+
+            (.windowClosed(windowId: 5012, workspace: "T", appBundleId: "com.apple.Safari"),
+             #"{"_event":"window-closed","appBundleId":"com.apple.Safari","windowId":5012,"workspace":"T"}"#),
         ]
         for (event, expectedJson) in testData {
             let data = try! encoder.encode(event)
@@ -101,6 +110,8 @@ final class ClientServerTest: XCTestCase {
             (#"{"_event":"mode-changed","mode":"resize"}"#, .modeChanged),
             (#"{"_event":"window-detected","windowId":456}"#, .windowDetected),
             (#"{"_event":"binding-triggered","mode":"main","binding":"alt-h"}"#, .bindingTriggered),
+            (#"{"_event":"window-moved","windowId":4211,"workspace":"T","prevWorkspace":"1"}"#, .windowMoved),
+            (#"{"_event":"window-closed","windowId":5012,"workspace":"T"}"#, .windowClosed),
         ]
         for (json, expectedEventType) in testData {
             let data = json.data(using: .utf8)!

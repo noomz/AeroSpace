@@ -11,6 +11,8 @@ import Common
 
 /// Whether the screen is locked right now. See: onScreenLocked, onScreenUnlocked
 @MainActor private var isScreenLocked = false
+/// Read-only view for the window-events diff, which freezes while the screen is locked
+@MainActor var screenIsLocked: Bool { isScreenLocked }
 /// Whether the screen was locked at any point since closedWindowsCache was captured.
 ///
 /// The cache exists only to survive the lock screen. macOS reuses window IDs of closed windows for brand new windows,

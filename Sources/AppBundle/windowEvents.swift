@@ -49,3 +49,40 @@ func diffWindowSnapshots(
     }
     return (closed + moved, new)
 }
+
+@MainActor private var windowSnapshot: WindowSnapshot? = nil
+
+/// Broadcasts `window-moved`/`window-closed` for what changed since the last check. Runs at the end of
+/// `refreshModel_nonCancellable` and of a heavy refresh session, after `on-window-detected` callbacks and
+/// `normalizeLayoutReason`.
+///
+/// The first snapshot is taken only at the end of a heavy session: at startup `refreshModel_nonCancellable` runs before
+/// any window is registered, and seeding there would announce every existing window as an arrival.
+@MainActor func checkWindowEvents(endOfHeavySession: Bool) {
+    if windowSnapshot == nil && !endOfHeavySession { return }
+    var new: WindowSnapshot = [:]
+    var sticky: Set<UInt32> = []
+    for window in MacWindow.allWindows {
+        if window.isSticky { sticky.insert(window.windowId) }
+        if let workspace = window.nodeWorkspace?.name {
+            new[window.windowId] = WindowSnapshotEntry(
+                workspace: workspace,
+                appBundleId: window.app.rawAppBundleId,
+                appName: window.app.name,
+            )
+        } else if let was = windowSnapshot?[window.windowId] {
+            new[window.windowId] = was // alive, outside any workspace for now: neither a move nor a close
+        }
+    }
+    let (events, snapshot) = diffWindowSnapshots(
+        old: windowSnapshot ?? [:],
+        new: new,
+        isLocked: screenIsLocked,
+        sticky: sticky,
+        isFirstDiff: windowSnapshot == nil,
+    )
+    windowSnapshot = snapshot
+    for event in events {
+        broadcastEvent(event)
+    }
+}
