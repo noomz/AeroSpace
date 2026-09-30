@@ -50,7 +50,19 @@ func diffWindowSnapshots(
     return (closed + moved, new)
 }
 
+/// Whether the diff is frozen for this check, and whether it stays frozen for the next one.
+///
+/// Behind the lock screen AeroSpace garbage-collects every window and re-registers them only in the first heavy
+/// refresh session after unlock. So the diff freezes at lock and thaws only at the end of that session: a light
+/// session in between (any CLI call) would otherwise see every window closed, then every window appear again.
+func windowDiffFreeze(isLocked: Bool, unlockPending: Bool, endOfHeavySession: Bool) -> (frozen: Bool, unlockPending: Bool) {
+    if isLocked { return (true, true) }
+    if unlockPending && !endOfHeavySession { return (true, true) }
+    return (false, false)
+}
+
 @MainActor private var windowSnapshot: WindowSnapshot? = nil
+@MainActor private var unlockPending = false
 
 /// Broadcasts `window-moved`/`window-closed` for what changed since the last check. Runs at the end of
 /// `refreshModel_nonCancellable` and of a heavy refresh session, after `on-window-detected` callbacks and
@@ -59,7 +71,9 @@ func diffWindowSnapshots(
 /// The first snapshot is taken only at the end of a heavy session: at startup `refreshModel_nonCancellable` runs before
 /// any window is registered, and seeding there would announce every existing window as an arrival.
 @MainActor func checkWindowEvents(endOfHeavySession: Bool) {
-    if windowSnapshot == nil && !endOfHeavySession { return }
+    let freeze = windowDiffFreeze(isLocked: screenIsLocked, unlockPending: unlockPending, endOfHeavySession: endOfHeavySession)
+    unlockPending = freeze.unlockPending
+    if windowSnapshot == nil && (!endOfHeavySession || freeze.frozen) { return }
     var new: WindowSnapshot = [:]
     var sticky: Set<UInt32> = []
     for window in MacWindow.allWindows {
@@ -77,7 +91,7 @@ func diffWindowSnapshots(
     let (events, snapshot) = diffWindowSnapshots(
         old: windowSnapshot ?? [:],
         new: new,
-        isLocked: screenIsLocked,
+        isLocked: freeze.frozen,
         sticky: sticky,
         isFirstDiff: windowSnapshot == nil,
     )

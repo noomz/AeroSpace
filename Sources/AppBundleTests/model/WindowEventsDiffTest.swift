@@ -55,6 +55,33 @@ final class WindowEventsDiffTest: XCTestCase {
         assertEquals(unlocked.events, [])
     }
 
+    func testFreezeLastsFromLockUntilTheFirstHeavySessionAfterUnlock() {
+        let locked = windowDiffFreeze(isLocked: true, unlockPending: false, endOfHeavySession: false)
+        assertEquals(locked.frozen, true)
+        let light = windowDiffFreeze(isLocked: false, unlockPending: locked.unlockPending, endOfHeavySession: false)
+        assertEquals(light.frozen, true) // unlocked, windows not re-registered yet
+        let heavy = windowDiffFreeze(isLocked: false, unlockPending: light.unlockPending, endOfHeavySession: true)
+        assertEquals(heavy.frozen, false)
+        assertEquals(heavy.unlockPending, false)
+        let normal = windowDiffFreeze(isLocked: false, unlockPending: false, endOfHeavySession: false)
+        assertEquals(normal.frozen, false)
+    }
+
+    func testNoBurstWhileWindowsAreStillGoneAfterUnlock() {
+        let before: WindowSnapshot = [1: kitty, 2: on("1", kitty)]
+        var pending = false
+        var snapshot = before
+        // lock (every window garbage-collected), unlock, a light session, then the heavy session restoring them
+        for (isLocked, heavy, world) in [(true, false, [:]), (false, false, [:]), (false, true, before)] as [(Bool, Bool, WindowSnapshot)] {
+            let freeze = windowDiffFreeze(isLocked: isLocked, unlockPending: pending, endOfHeavySession: heavy)
+            pending = freeze.unlockPending
+            let r = diff(snapshot, world, isLocked: freeze.frozen)
+            assertEquals(r.events, [])
+            snapshot = r.snapshot
+        }
+        assertEquals(snapshot, before)
+    }
+
     func testStickyNeverMovesButStillCloses() {
         let bitwarden = WindowSnapshotEntry(workspace: "1", appBundleId: "com.bitwarden.desktop", appName: "Bitwarden")
         let moved = diff([7: bitwarden], [7: on("2", bitwarden)], sticky: [7])
