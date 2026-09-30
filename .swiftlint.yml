@@ -1,5 +1,6 @@
 excluded:
   - .build
+  - .xcode-build
   - xcode
   - periphery
 
