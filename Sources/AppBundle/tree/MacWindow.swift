@@ -119,7 +119,7 @@ final class MacWindow: Window {
     }
 
     /// Save the current window position so it can be restored later by unhideFromCorner.
-@MainActor
+    @MainActor
     @discardableResult
     func saveFloatingPositionIfNeeded() async throws -> Bool {
         guard !screenSleepWakeInProgress else { return false }
@@ -254,7 +254,7 @@ private func unbindAndGetBindingDataForNewWindow(_ windowId: UInt32, _ macApp: M
         case .window:
             // Pre-check: if on-window-detected callbacks will make this window floating/sticky,
             // bind as floating from the start to avoid a tiling flash (other windows resizing momentarily)
-willCallbackMakeFloatingBeforeWindowExists(appBundleId: macApp.rawAppBundleId, appName: macApp.name)
+            willCallbackMakeFloatingBeforeWindowExists(appBundleId: macApp.rawAppBundleId, appName: macApp.name)
                 ? BindingData(parent: workspace.floatingWindowsContainer, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
                 : unbindAndGetBindingDataForNewTilingWindow(workspace, window: window)
     }
@@ -326,8 +326,8 @@ func willCallbackMakeFloatingBeforeWindowExists(appBundleId: String?, appName: S
     return false
 }
 
-private extension WindowDetectedCallback {
-    var makesWindowFloatingOrSticky: Bool {
+extension WindowDetectedCallback {
+    fileprivate var makesWindowFloatingOrSticky: Bool {
         run.flatten().contains { command in
             guard command.info.kind == CmdKind.layout, let layoutCmd = command as? LayoutCommand else { return false }
             let descriptions = layoutCmd.args.toggleBetween.val

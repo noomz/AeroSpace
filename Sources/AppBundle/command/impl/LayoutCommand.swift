@@ -62,7 +62,7 @@ struct LayoutCommand: Command {
                 switch node {
                     case .tilingContainer:
                         return .succ // Nothing to do
-case .floatingWindowsContainer(let container):
+                    case .floatingWindowsContainer(let container):
                         window.isSticky = false
                         window.lastFloatingSize = (try? await window.getAxSize(.nonCancellable)) ?? window.lastFloatingSize
                         guard let workspace = container.nodeWorkspace else { return .fail(io.err(bugPrompt())) }

@@ -16,7 +16,7 @@ enum GlobalObserver {
         }
 
         let notifName = notification.name.rawValue
-Task.startUnstructured { @MainActor in
+        Task.startUnstructured { @MainActor in
             if !TrayMenuModel.shared.isEnabled { return }
             if notifName == NSWorkspace.didActivateApplicationNotification.rawValue,
                ignoreFocusFromAppIfNeeded(bundleId: bundleId)
@@ -58,12 +58,12 @@ Task.startUnstructured { @MainActor in
     private static func onScreenSleepWake(_ notification: Notification) {
         let notifName = notification.name.rawValue
         let isSleepNotification = notification.name == NSWorkspace.screensDidSleepNotification
-        Task { @MainActor in
+        Task.startUnstructured { @MainActor in
             screenSleepWakeInProgress = true
             cancelCancellableCompleteRefreshSession()
             screenSleepWakeTask?.cancel()
             if isSleepNotification { return }
-            screenSleepWakeTask = Task { @MainActor in
+            screenSleepWakeTask = Task.startUnstructured { @MainActor in
                 try? await Task.sleep(for: screenSleepWakeSettleDelay)
                 if Task.isCancelled { return }
                 screenSleepWakeInProgress = false

@@ -599,7 +599,7 @@ final class ConfigTest: XCTestCase {
         ])
     }
 
-func testAfterLoginCommandDeprecation() {
+    func testAfterLoginCommandDeprecation() {
         let result = parseConfig(
             """
             after-login-command = ['exec-and-forget echo hi']
