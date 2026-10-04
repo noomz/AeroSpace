@@ -24,24 +24,13 @@ import AppKit
         focusFollowsTask = Task.startUnstructured { @MainActor in
             guard let token: RunSessionGuard = .isServerEnabled else { return }
             try checkCancellation()
-            // Ignores macOS menubar dropdown, but, unfortunately, it doesn't ignore non-native menu-like fake windows.
-            // todo: It would be cool to somehow reuse isWindowHeuristic logic here
-            if await isAxWindowUnderMouse(location) == false { return }
+            // Hit-test via accessibility, so the window macOS draws on top wins, regardless of floating/tiling/sticky.
+            // Menubar dropdowns and menu-like fake windows resolve to no managed window and are ignored.
+            guard let windowId = await axWindowIdUnderMouse(location) else { return }
             try checkCancellation()
+            // Hidden workspaces park their windows in a monitor corner, so they can still be hit-tested
             let workspace = location.monitorApproximation.activeWorkspace
-            var window: Window? = nil
-            for child in workspace.floatingWindowsContainer.mruChildren {
-                try checkCancellation()
-                guard let child = child as? Window else { continue }
-                guard let rect = try await child.getAxRect(.cancellable) else { continue }
-                if rect.contains(location) {
-                    window = child
-                    break
-                }
-            }
-            if window == nil {
-                window = location.findWindowRecursively(in: workspace.rootTilingContainer, virtual: false, fullscreenCoversAll: true)
-            }
+            let window = Window.get(byId: windowId)?.takeIf { $0.nodeWorkspace == workspace }
             if let window {
                 try await runLightSession(.focusFollowsMouse, token) {
                     _ = window.focusWindow()
@@ -53,12 +42,13 @@ import AppKit
 }
 
 @concurrent
-private nonisolated func isAxWindowUnderMouse(_ location: CGPoint) async -> Bool? {
+private nonisolated func axWindowIdUnderMouse(_ location: CGPoint) async -> CGWindowID? {
     let systemwide = AXUIElementCreateSystemWide()
     var element: AXUIElement?
     if unsafe AXUIElementCopyElementAtPosition(systemwide, Float(location.x), Float(location.y), &element) != .success {
         return nil
     }
     guard let element else { return nil }
-    return element.get(Ax.parentWindowRecursive) != nil || element.get(Ax.roleAttr) == kAXWindowRole
+    let window = element.get(Ax.roleAttr) == kAXWindowRole ? element : element.get(Ax.parentWindowRecursive)
+    return window?.containingWindowId()
 }
