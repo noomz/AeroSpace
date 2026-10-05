@@ -24,24 +24,16 @@ import AppKit
         focusFollowsTask = Task.startUnstructured { @MainActor in
             guard let token: RunSessionGuard = .isServerEnabled else { return }
             try checkCancellation()
-            // Ignores macOS menubar dropdown, but, unfortunately, it doesn't ignore non-native menu-like fake windows.
-            // todo: It would be cool to somehow reuse isWindowHeuristic logic here
-            if await isAxWindowUnderMouse(location) == false { return }
+            // Hit-test, so the window macOS draws on top wins, regardless of floating/tiling.
+            // Menubar dropdowns and menu-like fake windows resolve to no managed window and are ignored.
+            // Accessibility goes first, because it skips click-through overlays. When it doesn't resolve to a managed
+            // window (it fails on some web content in WKWebView-based apps), the window server's z-order is the fallback
+            let axWindowId = await axWindowIdUnderMouse(location)
             try checkCancellation()
+            let hitWindow = axWindowId.flatMap(Window.get(byId:)) ?? cgWindowIdUnderMouse(location).flatMap(Window.get(byId:))
+            // Hidden workspaces park their windows in a monitor corner, so they can still be hit-tested
             let workspace = location.monitorApproximation.activeWorkspace
-            var window: Window? = nil
-            for child in workspace.floatingWindowsContainer.mruChildren {
-                try checkCancellation()
-                guard let child = child as? Window else { continue }
-                guard let rect = try await child.getAxRect(.cancellable) else { continue }
-                if rect.contains(location) {
-                    window = child
-                    break
-                }
-            }
-            if window == nil {
-                window = location.findWindowRecursively(in: workspace.rootTilingContainer, virtual: false, fullscreenCoversAll: true)
-            }
+            let window = hitWindow?.takeIf { $0.nodeWorkspace == workspace }
             if let window {
                 try await runLightSession(.focusFollowsMouse, token) {
                     _ = window.focusWindow()
@@ -53,12 +45,28 @@ import AppKit
 }
 
 @concurrent
-private nonisolated func isAxWindowUnderMouse(_ location: CGPoint) async -> Bool? {
+private nonisolated func axWindowIdUnderMouse(_ location: CGPoint) async -> CGWindowID? {
     let systemwide = AXUIElementCreateSystemWide()
     var element: AXUIElement?
     if unsafe AXUIElementCopyElementAtPosition(systemwide, Float(location.x), Float(location.y), &element) != .success {
         return nil
     }
     guard let element else { return nil }
-    return element.get(Ax.parentWindowRecursive) != nil || element.get(Ax.roleAttr) == kAXWindowRole
+    // Some elements (Electron, Qt, web content) lack kAXWindowAttribute; the private API resolves them directly
+    return (element.get(Ax.parentWindowRecursive) ?? element).containingWindowId()
+}
+
+/// The frontmost on-screen window containing the location, in window server z-order
+private func cgWindowIdUnderMouse(_ location: CGPoint) -> CGWindowID? {
+    let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+    guard let windows = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else { return nil }
+    for window in windows {
+        guard let boundsDict = window[kCGWindowBounds as String] as? NSDictionary,
+              let bounds = CGRect(dictionaryRepresentation: boundsDict as CFDictionary),
+              bounds.contains(location),
+              (window[kCGWindowAlpha as String] as? Double ?? 1) > 0 // Fully transparent windows aren't seen
+        else { continue }
+        return window[kCGWindowNumber as String] as? CGWindowID
+    }
+    return nil
 }
