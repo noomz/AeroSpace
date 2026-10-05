@@ -22,21 +22,26 @@ import AppKit
         let location = event.locationInWindow.withYAxisFlipped
         focusFollowsTask?.cancel()
         focusFollowsTask = Task.startUnstructured { @MainActor in
-            guard let token: RunSessionGuard = .isServerEnabled else { return }
-            // The next mouse move cancels this task, so focus only moves once the mouse rests for delayMs
+            // The next mouse move cancels this task, so focus only moves once the mouse rests for delayMs.
+            // A focus change made meanwhile (a keyboard command, a click) wins over the mouse
             let delayMs = config.focusFollowsMouse.delayMs
-            if delayMs > 0 { try await Task.sleep(for: .milliseconds(delayMs)) }
+            if delayMs > 0 {
+                let focusedBefore = focus.windowOrNil
+                try await Task.sleep(for: .milliseconds(delayMs))
+                if focus.windowOrNil != focusedBefore { return }
+            }
+            guard let token: RunSessionGuard = .isServerEnabled else { return }
             try checkCancellation()
             // Hit-test, so the window macOS draws on top wins, regardless of floating/tiling/sticky.
             // Menubar dropdowns and menu-like fake windows resolve to no managed window and are ignored.
-            // Accessibility goes first, because it skips click-through overlays. It can't resolve some web content
-            // (WKWebView-based apps), so the window server's z-order is the fallback
+            // Accessibility goes first, because it skips click-through overlays. When it doesn't resolve to a managed
+            // window (it fails on some web content in WKWebView-based apps), the window server's z-order is the fallback
             let axWindowId = await axWindowIdUnderMouse(location)
             try checkCancellation()
             guard let window = axWindowId.flatMap(Window.get(byId:)) ?? cgWindowIdUnderMouse(location).flatMap(Window.get(byId:))
             else { return }
             if let focused = focus.windowOrNil, focused != window, focused.nodeWorkspace == window.nodeWorkspace,
-               try await isCoveringFloatingWindow(focused, percent: config.focusFollowsMouse.floatingCoverPercent)
+               try await isCoveringFloatingWindow(focused, location, percent: config.focusFollowsMouse.floatingCoverPercent)
             {
                 return
             }
@@ -92,9 +97,10 @@ private func isPastEdgeInset(_ window: Window, _ point: CGPoint, inset: Int) asy
 }
 
 @MainActor
-private func isCoveringFloatingWindow(_ window: Window, percent: Int) async throws -> Bool {
+private func isCoveringFloatingWindow(_ window: Window, _ point: CGPoint, percent: Int) async throws -> Bool {
     guard percent > 0, window.isFloating, let monitor = window.nodeMonitor else { return false }
-    guard let rect = try await window.getAxRect(.cancellable) else { return false }
+    // Inside its frame, the mouse is over a window drawn on top of it (a dialog, a palette), which may take focus
+    guard let rect = try await window.getAxRect(.cancellable), !rect.contains(point) else { return false }
     // Only the part of the window that lies on its monitor counts
     let visible = monitor.visibleRect
     let coveredWidth = min(rect.maxX, visible.maxX) - max(rect.minX, visible.minX)
