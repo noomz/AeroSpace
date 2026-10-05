@@ -27,11 +27,14 @@ import AppKit
             let delayMs = config.focusFollowsMouse.delayMs
             if delayMs > 0 { try await Task.sleep(for: .milliseconds(delayMs)) }
             try checkCancellation()
-            // Hit-test via accessibility, so the window macOS draws on top wins, regardless of floating/tiling/sticky.
+            // Hit-test, so the window macOS draws on top wins, regardless of floating/tiling/sticky.
             // Menubar dropdowns and menu-like fake windows resolve to no managed window and are ignored.
-            guard let windowId = await axWindowIdUnderMouse(location) else { return }
+            // Accessibility goes first, because it skips click-through overlays. It can't resolve some web content
+            // (WKWebView-based apps), so the window server's z-order is the fallback
+            let axWindowId = await axWindowIdUnderMouse(location)
             try checkCancellation()
-            guard let window = Window.get(byId: windowId) else { return }
+            guard let window = axWindowId.flatMap(Window.get(byId:)) ?? cgWindowIdUnderMouse(location).flatMap(Window.get(byId:))
+            else { return }
             if let focused = focus.windowOrNil, focused != window, focused.nodeWorkspace == window.nodeWorkspace,
                try await isCoveringFloatingWindow(focused, percent: config.focusFollowsMouse.floatingCoverPercent)
             {
@@ -60,6 +63,21 @@ private nonisolated func axWindowIdUnderMouse(_ location: CGPoint) async -> CGWi
     guard let element else { return nil }
     // Some elements (Electron, Qt, web content) lack kAXWindowAttribute; the private API resolves them directly
     return (element.get(Ax.parentWindowRecursive) ?? element).containingWindowId()
+}
+
+/// The frontmost on-screen window containing the location, in window server z-order
+private func cgWindowIdUnderMouse(_ location: CGPoint) -> CGWindowID? {
+    let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+    guard let windows = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else { return nil }
+    for window in windows {
+        guard let boundsDict = window[kCGWindowBounds as String] as? NSDictionary,
+              let bounds = CGRect(dictionaryRepresentation: boundsDict as CFDictionary),
+              bounds.contains(location),
+              (window[kCGWindowAlpha as String] as? Double ?? 1) > 0 // Fully transparent windows aren't seen
+        else { continue }
+        return window[kCGWindowNumber as String] as? CGWindowID
+    }
+    return nil
 }
 
 @MainActor
