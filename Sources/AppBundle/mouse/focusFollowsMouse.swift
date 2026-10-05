@@ -3,7 +3,7 @@ import AppKit
 @MainActor private var focusFollowsMouseMonitor: Any? = nil
 @MainActor private var focusFollowsTask: Task<(), any Error>? = nil
 
-@MainActor func syncFocusFollowsMouse(_ config: Config) {
+@MainActor func syncFocusFollowsMouse() {
     if config.focusFollowsMouse.enabled == (focusFollowsMouseMonitor != nil) {
         return
     }
