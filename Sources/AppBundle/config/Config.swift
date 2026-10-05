@@ -65,6 +65,9 @@ struct Config: ConvenienceMutable {
 
 struct FocusFollowsMouse: ConvenienceMutable {
     var enabled: Bool = false
+    /// While the focused floating window covers at least this percent of its monitor's visible width and height,
+    /// the mouse doesn't take focus away from it on that monitor. 0 disables the check
+    var floatingCoverPercent: Int = 0
 }
 
 enum ConfigVersion: Int, Comparable, CaseIterable, Sendable, CustomStringConvertible {
