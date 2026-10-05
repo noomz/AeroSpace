@@ -1,6 +1,7 @@
 private let focusFollowsMouseParserTable: [String: any ParserProtocol<FocusFollowsMouse>] = [
     "enabled": Parser(\.enabled, parseBool),
     "delay-ms": Parser(\.delayMs, parseNonNegativeInt),
+    "edge-inset": Parser(\.edgeInset, parseNonNegativeInt),
     "floating-cover-percent": Parser(\.floatingCoverPercent, parsePercent),
 ]
 

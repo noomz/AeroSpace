@@ -37,6 +37,7 @@ import AppKit
             {
                 return
             }
+            if try await !isPastEdgeInset(window, location, inset: config.focusFollowsMouse.edgeInset) { return }
             try checkCancellation()
             // Hidden workspaces park their windows in a monitor corner, so they can still be hit-tested.
             // Checked after the awaits above, because a workspace switch may have happened meanwhile
@@ -59,6 +60,17 @@ private nonisolated func axWindowIdUnderMouse(_ location: CGPoint) async -> CGWi
     guard let element else { return nil }
     // Some elements (Electron, Qt, web content) lack kAXWindowAttribute; the private API resolves them directly
     return (element.get(Ax.parentWindowRecursive) ?? element).containingWindowId()
+}
+
+@MainActor
+private func isPastEdgeInset(_ window: Window, _ point: CGPoint, inset: Int) async throws -> Bool {
+    // An unknown frame can't prove the mouse is near the edge, so it doesn't block focus
+    guard inset > 0, let rect = try await window.getAxRect(.cancellable) else { return true }
+    // Cap the inset, so the middle half of a small window still takes focus
+    let dx = min(CGFloat(inset), rect.width / 4)
+    let dy = min(CGFloat(inset), rect.height / 4)
+    return Rect(topLeftX: rect.minX + dx, topLeftY: rect.minY + dy, width: rect.width - 2 * dx, height: rect.height - 2 * dy)
+        .contains(point)
 }
 
 @MainActor
