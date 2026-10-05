@@ -22,6 +22,14 @@ import AppKit
         let location = event.locationInWindow.withYAxisFlipped
         focusFollowsTask?.cancel()
         focusFollowsTask = Task.startUnstructured { @MainActor in
+            // The next mouse move cancels this task, so focus only moves once the mouse rests for delayMs.
+            // A focus change made meanwhile (a keyboard command, a click) wins over the mouse
+            let delayMs = config.focusFollowsMouse.delayMs
+            if delayMs > 0 {
+                let focusedBefore = focus.windowOrNil
+                try await Task.sleep(for: .milliseconds(delayMs))
+                if focus.windowOrNil != focusedBefore { return }
+            }
             guard let token: RunSessionGuard = .isServerEnabled else { return }
             try checkCancellation()
             // Hit-test, so the window macOS draws on top wins, regardless of floating/tiling.

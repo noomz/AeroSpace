@@ -65,6 +65,8 @@ struct Config: ConvenienceMutable {
 
 struct FocusFollowsMouse: ConvenienceMutable {
     var enabled: Bool = false
+    /// Focus moves only after the mouse rests this long. Every mouse move restarts the wait
+    var delayMs: Int = 0
     /// While the focused floating window covers at least this percent of its monitor's visible width and height,
     /// windows around it on that monitor don't take focus from it. 0 disables the check
     var floatingCoverPercent: Int = 0

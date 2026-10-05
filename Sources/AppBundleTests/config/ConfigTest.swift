@@ -235,6 +235,21 @@ final class ConfigTest: XCTestCase {
         )
     }
 
+    func testFocusFollowsMouseDelay() {
+        let result = parseConfig(
+            """
+            focus-follows-mouse.delay-ms = 150
+            """,
+        )
+        assertEquals(result.errors, [])
+        assertEquals(result.config.focusFollowsMouse.delayMs, 150)
+
+        assertEquals(
+            parseConfig("focus-follows-mouse.delay-ms = -1").strErrors,
+            ["[ERROR] focus-follows-mouse.delay-ms: Must be non-negative"],
+        )
+    }
+
     func testConfigParseError() {
         assertFalse(parseConfig("true").allowReloadConfig)
         assertEquals(
