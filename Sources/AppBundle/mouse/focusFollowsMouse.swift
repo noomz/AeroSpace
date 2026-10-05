@@ -49,6 +49,6 @@ private nonisolated func axWindowIdUnderMouse(_ location: CGPoint) async -> CGWi
         return nil
     }
     guard let element else { return nil }
-    let window = element.get(Ax.roleAttr) == kAXWindowRole ? element : element.get(Ax.parentWindowRecursive)
-    return window?.containingWindowId()
+    // Some elements (Electron, Qt, web content) lack kAXWindowAttribute; the private API resolves them directly
+    return (element.get(Ax.parentWindowRecursive) ?? element).containingWindowId()
 }
