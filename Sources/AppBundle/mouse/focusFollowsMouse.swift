@@ -3,7 +3,7 @@ import AppKit
 @MainActor private var focusFollowsMouseMonitor: Any? = nil
 @MainActor private var focusFollowsTask: Task<(), any Error>? = nil
 
-@MainActor func syncFocusFollowsMouse(_ config: Config) {
+@MainActor func syncFocusFollowsMouse() {
     if config.focusFollowsMouse.enabled == (focusFollowsMouseMonitor != nil) {
         return
     }
@@ -23,19 +23,28 @@ import AppKit
         focusFollowsTask?.cancel()
         focusFollowsTask = Task.startUnstructured { @MainActor in
             guard let token: RunSessionGuard = .isServerEnabled else { return }
+            // The next mouse move cancels this task, so focus only moves once the mouse rests for delayMs
+            let delayMs = config.focusFollowsMouse.delayMs
+            if delayMs > 0 { try await Task.sleep(for: .milliseconds(delayMs)) }
             try checkCancellation()
             // Hit-test via accessibility, so the window macOS draws on top wins, regardless of floating/tiling/sticky.
             // Menubar dropdowns and menu-like fake windows resolve to no managed window and are ignored.
             guard let windowId = await axWindowIdUnderMouse(location) else { return }
             try checkCancellation()
-            // Hidden workspaces park their windows in a monitor corner, so they can still be hit-tested
-            let workspace = location.monitorApproximation.activeWorkspace
-            let window = Window.get(byId: windowId)?.takeIf { $0.nodeWorkspace == workspace }
-            if let window {
-                try await runLightSession(.focusFollowsMouse, token) {
-                    _ = window.focusWindow()
-                    window.nativeFocus()
-                }
+            guard let window = Window.get(byId: windowId) else { return }
+            if let focused = focus.windowOrNil, focused != window, focused.nodeWorkspace == window.nodeWorkspace,
+               try await isCoveringFloatingWindow(focused, percent: config.focusFollowsMouse.floatingCoverPercent)
+            {
+                return
+            }
+            if try await !isPastEdgeInset(window, location, inset: config.focusFollowsMouse.edgeInset) { return }
+            try checkCancellation()
+            // Hidden workspaces park their windows in a monitor corner, so they can still be hit-tested.
+            // Checked after the awaits above, because a workspace switch may have happened meanwhile
+            guard window.nodeWorkspace == location.monitorApproximation.activeWorkspace else { return }
+            try await runLightSession(.focusFollowsMouse, token) {
+                _ = window.focusWindow()
+                window.nativeFocus()
             }
         }
     }
@@ -49,6 +58,29 @@ private nonisolated func axWindowIdUnderMouse(_ location: CGPoint) async -> CGWi
         return nil
     }
     guard let element else { return nil }
-    let window = element.get(Ax.roleAttr) == kAXWindowRole ? element : element.get(Ax.parentWindowRecursive)
-    return window?.containingWindowId()
+    // Some elements (Electron, Qt, web content) lack kAXWindowAttribute; the private API resolves them directly
+    return (element.get(Ax.parentWindowRecursive) ?? element).containingWindowId()
+}
+
+@MainActor
+private func isPastEdgeInset(_ window: Window, _ point: CGPoint, inset: Int) async throws -> Bool {
+    // An unknown frame can't prove the mouse is near the edge, so it doesn't block focus
+    guard inset > 0, let rect = try await window.getAxRect(.cancellable) else { return true }
+    // Cap the inset, so the middle half of a small window still takes focus
+    let dx = min(CGFloat(inset), rect.width / 4)
+    let dy = min(CGFloat(inset), rect.height / 4)
+    return Rect(topLeftX: rect.minX + dx, topLeftY: rect.minY + dy, width: rect.width - 2 * dx, height: rect.height - 2 * dy)
+        .contains(point)
+}
+
+@MainActor
+private func isCoveringFloatingWindow(_ window: Window, percent: Int) async throws -> Bool {
+    guard percent > 0, window.isFloating, let monitor = window.nodeMonitor else { return false }
+    guard let rect = try await window.getAxRect(.cancellable) else { return false }
+    // Only the part of the window that lies on its monitor counts
+    let visible = monitor.visibleRect
+    let coveredWidth = min(rect.maxX, visible.maxX) - max(rect.minX, visible.minX)
+    let coveredHeight = min(rect.maxY, visible.maxY) - max(rect.minY, visible.minY)
+    let ratio = CGFloat(percent) / 100
+    return coveredWidth >= visible.width * ratio && coveredHeight >= visible.height * ratio
 }

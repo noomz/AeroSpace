@@ -220,6 +220,51 @@ final class ConfigTest: XCTestCase {
         )
     }
 
+    func testFocusFollowsMouseFloatingCoverPercent() {
+        let result = parseConfig(
+            """
+            focus-follows-mouse.floating-cover-percent = 90
+            """,
+        )
+        assertEquals(result.errors, [])
+        assertEquals(result.config.focusFollowsMouse.floatingCoverPercent, 90)
+
+        assertEquals(
+            parseConfig("focus-follows-mouse.floating-cover-percent = 101").strErrors,
+            ["[ERROR] focus-follows-mouse.floating-cover-percent: Must be in [0, 100] range"],
+        )
+    }
+
+    func testFocusFollowsMouseDelay() {
+        let result = parseConfig(
+            """
+            focus-follows-mouse.delay-ms = 150
+            """,
+        )
+        assertEquals(result.errors, [])
+        assertEquals(result.config.focusFollowsMouse.delayMs, 150)
+
+        assertEquals(
+            parseConfig("focus-follows-mouse.delay-ms = -1").strErrors,
+            ["[ERROR] focus-follows-mouse.delay-ms: Must be non-negative"],
+        )
+    }
+
+    func testFocusFollowsMouseEdgeInset() {
+        let result = parseConfig(
+            """
+            focus-follows-mouse.edge-inset = 40
+            """,
+        )
+        assertEquals(result.errors, [])
+        assertEquals(result.config.focusFollowsMouse.edgeInset, 40)
+
+        assertEquals(
+            parseConfig("focus-follows-mouse.edge-inset = -1").strErrors,
+            ["[ERROR] focus-follows-mouse.edge-inset: Must be non-negative"],
+        )
+    }
+
     func testConfigParseError() {
         assertFalse(parseConfig("true").allowReloadConfig)
         assertEquals(
