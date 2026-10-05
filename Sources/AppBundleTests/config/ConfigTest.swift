@@ -250,6 +250,21 @@ final class ConfigTest: XCTestCase {
         )
     }
 
+    func testFocusFollowsMouseEdgeInset() {
+        let result = parseConfig(
+            """
+            focus-follows-mouse.edge-inset = 40
+            """,
+        )
+        assertEquals(result.errors, [])
+        assertEquals(result.config.focusFollowsMouse.edgeInset, 40)
+
+        assertEquals(
+            parseConfig("focus-follows-mouse.edge-inset = -1").strErrors,
+            ["[ERROR] focus-follows-mouse.edge-inset: Must be non-negative"],
+        )
+    }
+
     func testConfigParseError() {
         assertFalse(parseConfig("true").allowReloadConfig)
         assertEquals(

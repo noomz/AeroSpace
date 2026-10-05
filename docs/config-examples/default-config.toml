@@ -62,6 +62,8 @@ on-mode-changed = []
 focus-follows-mouse.enabled = false
 # Focus moves only after the mouse rests this many milliseconds. 0 moves it right away
 focus-follows-mouse.delay-ms = 0
+# Focus moves only once the mouse is this many points inside the window's frame. 0 disables it
+focus-follows-mouse.edge-inset = 0
 # While the focused floating window covers at least this percent of its monitor's width and height,
 # hovering windows around it on that monitor doesn't take focus away from it. 0 disables it
 focus-follows-mouse.floating-cover-percent = 0
