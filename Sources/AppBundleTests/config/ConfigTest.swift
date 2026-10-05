@@ -220,6 +220,21 @@ final class ConfigTest: XCTestCase {
         )
     }
 
+    func testFocusFollowsMouseFloatingCoverPercent() {
+        let result = parseConfig(
+            """
+            focus-follows-mouse.floating-cover-percent = 90
+            """,
+        )
+        assertEquals(result.errors, [])
+        assertEquals(result.config.focusFollowsMouse.floatingCoverPercent, 90)
+
+        assertEquals(
+            parseConfig("focus-follows-mouse.floating-cover-percent = 101").strErrors,
+            ["[ERROR] focus-follows-mouse.floating-cover-percent: Must be in [0, 100] range"],
+        )
+    }
+
     func testConfigParseError() {
         assertFalse(parseConfig("true").allowReloadConfig)
         assertEquals(

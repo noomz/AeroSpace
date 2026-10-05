@@ -30,15 +30,20 @@ import AppKit
             // window (it fails on some web content in WKWebView-based apps), the window server's z-order is the fallback
             let axWindowId = await axWindowIdUnderMouse(location)
             try checkCancellation()
-            let hitWindow = axWindowId.flatMap(Window.get(byId:)) ?? cgWindowIdUnderMouse(location).flatMap(Window.get(byId:))
-            // Hidden workspaces park their windows in a monitor corner, so they can still be hit-tested
-            let workspace = location.monitorApproximation.activeWorkspace
-            let window = hitWindow?.takeIf { $0.nodeWorkspace == workspace }
-            if let window {
-                try await runLightSession(.focusFollowsMouse, token) {
-                    _ = window.focusWindow()
-                    window.nativeFocus()
-                }
+            guard let window = axWindowId.flatMap(Window.get(byId:)) ?? cgWindowIdUnderMouse(location).flatMap(Window.get(byId:))
+            else { return }
+            if let focused = focus.windowOrNil, focused != window, focused.nodeWorkspace == window.nodeWorkspace,
+               try await isCoveringFloatingWindow(focused, location, percent: config.focusFollowsMouse.floatingCoverPercent)
+            {
+                return
+            }
+            try checkCancellation()
+            // Hidden workspaces park their windows in a monitor corner, so they can still be hit-tested.
+            // Checked after the awaits above, because a workspace switch may have happened meanwhile
+            guard window.nodeWorkspace == location.monitorApproximation.activeWorkspace else { return }
+            try await runLightSession(.focusFollowsMouse, token) {
+                _ = window.focusWindow()
+                window.nativeFocus()
             }
         }
     }
@@ -69,4 +74,17 @@ private func cgWindowIdUnderMouse(_ location: CGPoint) -> CGWindowID? {
         return window[kCGWindowNumber as String] as? CGWindowID
     }
     return nil
+}
+
+@MainActor
+private func isCoveringFloatingWindow(_ window: Window, _ point: CGPoint, percent: Int) async throws -> Bool {
+    guard percent > 0, window.isFloating, let monitor = window.nodeMonitor else { return false }
+    // Inside its frame, the mouse is over a window drawn on top of it (a dialog, a palette), which may take focus
+    guard let rect = try await window.getAxRect(.cancellable), !rect.contains(point) else { return false }
+    // Only the part of the window that lies on its monitor counts
+    let visible = monitor.visibleRect
+    let coveredWidth = min(rect.maxX, visible.maxX) - max(rect.minX, visible.minX)
+    let coveredHeight = min(rect.maxY, visible.maxY) - max(rect.minY, visible.minY)
+    let ratio = CGFloat(percent) / 100
+    return coveredWidth >= visible.width * ratio && coveredHeight >= visible.height * ratio
 }
