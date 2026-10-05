@@ -60,6 +60,8 @@ persistent-workspaces = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B",
 on-mode-changed = []
 
 focus-follows-mouse.enabled = false
+# Focus moves only after the mouse rests this many milliseconds. 0 moves it right away
+focus-follows-mouse.delay-ms = 0
 # While the focused floating window covers at least this percent of its monitor's width and height,
 # hovering other windows on that monitor doesn't take focus away from it. 0 disables it
 focus-follows-mouse.floating-cover-percent = 0

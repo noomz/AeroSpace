@@ -23,6 +23,9 @@ import AppKit
         focusFollowsTask?.cancel()
         focusFollowsTask = Task.startUnstructured { @MainActor in
             guard let token: RunSessionGuard = .isServerEnabled else { return }
+            // The next mouse move cancels this task, so focus only moves once the mouse rests for delayMs
+            let delayMs = config.focusFollowsMouse.delayMs
+            if delayMs > 0 { try await Task.sleep(for: .milliseconds(delayMs)) }
             try checkCancellation()
             // Hit-test via accessibility, so the window macOS draws on top wins, regardless of floating/tiling/sticky.
             // Menubar dropdowns and menu-like fake windows resolve to no managed window and are ignored.
