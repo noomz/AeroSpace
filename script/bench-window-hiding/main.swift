@@ -25,6 +25,19 @@ if let i = CommandLine.arguments.firstIndex(of: "--frame") {
     exit(0)
 }
 
+if let i = CommandLine.arguments.firstIndex(of: "--state") {
+    let id = UInt32(CommandLine.arguments[i + 1])!
+    let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as! [[String: Any]]
+    guard let bounds = list.first(where: { $0[kCGWindowNumber as String] as? UInt32 == id })?[kCGWindowBounds as String] as? NSDictionary,
+          let rect = CGRect(dictionaryRepresentation: bounds) else { print("offscreen"); exit(0) }
+    var ids = [CGDirectDisplayID](repeating: 0, count: 16)
+    var n: UInt32 = 0
+    CGGetActiveDisplayList(16, &ids, &n)
+    let area = ids.prefix(Int(n)).map { CGDisplayBounds($0).intersection(rect) }.reduce(0.0) { $0 + ($1.isNull ? 0 : Double($1.width * $1.height)) }
+    print(area <= 2 * Double(max(rect.width, rect.height)) ? "sliver" : "visible")
+    exit(0)
+}
+
 if let i = CommandLine.arguments.firstIndex(of: "--display") {
     let id = UInt32(CommandLine.arguments[i + 1])!
     let list = CGWindowListCopyWindowInfo(.optionIncludingWindow, id) as! [[String: Any]]

@@ -28,35 +28,42 @@ before=$("$cli" list-windows --all --format '%{window-id}' | sort)
 osascript -e 'tell application "TextEdit" to make new document' -e 'tell application "TextEdit" to make new document' > /dev/null
 settle 2
 ids=($(comm -13 <(echo "$before") <("$cli" list-windows --all --format '%{window-id}' | sort)))
-[[ ${#ids[@]} == 2 ]] || { echo "FAIL setup: expected 2 new windows, got ${#ids[@]}"; exit 1; }
+[[ ${#ids[@]} -ge 2 ]] || { echo "FAIL setup: expected 2 new windows, got ${#ids[@]}"; exit 1; }
 w1=${ids[0]}; w2=${ids[1]}
 
+[[ ${1:-true} == true ]] && hidden=offscreen || hidden=sliver
+state() { "$bench" --state "$1"; }
+
 "$cli" focus-monitor "$main"; "$cli" workspace probe-a; "$cli" move-node-to-workspace --window-id "$w1" probe-a
-"$cli" focus-monitor "$other"; "$cli" workspace probe-b; "$cli" move-node-to-workspace --window-id "$w2" probe-b
 "$cli" layout --window-id "$w1" floating
 settle
-f1=$(frame "$w1"); f2=$(frame "$w2"); display_other=$("$bench" --display "$w2")
-check "both windows visible before hiding" "$([[ $f1 != offscreen && $f2 != offscreen ]] && echo yes)" yes
+f1=$(frame "$w1")
+"$cli" focus-monitor "$other"; "$cli" workspace probe-b; "$cli" move-node-to-workspace --window-id "$w2" probe-b
+settle
+f2=$(frame "$w2"); display_other=$("$bench" --display "$w2")
+check "both windows visible before hiding" "$(state "$w1")/$(state "$w2")" "$([[ $other == main ]] && echo "$hidden" || echo visible)/visible"
 
 "$cli" workspace probe-b-empty; "$cli" focus-monitor "$main"; "$cli" workspace probe-a-empty
 settle
-check "window on main monitor hidden" "$(frame "$w1")" offscreen
-check "window on other monitor hidden" "$(frame "$w2")" offscreen
+check "window on main monitor hidden" "$(state "$w1")" "$hidden"
+check "window on other monitor hidden" "$(state "$w2")" "$hidden"
 settle 2
 listed=$("$cli" list-windows --all --format '%{window-id}|%{window-title}' | grep -E "^($w1|$w2)\|" | grep -cv '|$')
 check "hidden windows still tracked, titles readable over AX" "$listed" 2
 
-"$cli" workspace probe-a; "$cli" focus-monitor "$other"; "$cli" workspace probe-b
+"$cli" workspace probe-a
 settle
 check "floating window returns to the exact frame" "$(frame "$w1")" "$f1"
-check "tiling window on other monitor returns to the same frame" "$(frame "$w2")" "$f2"
+"$cli" focus-monitor "$other"; "$cli" workspace probe-b
+settle
+check "tiling window returns to the same frame" "$(frame "$w2")" "$f2"
 
 "$cli" workspace probe-b-empty; "$cli" focus-monitor "$main"; "$cli" workspace probe-a-empty
 settle
 osascript -e 'tell application "TextEdit" to activate' > /dev/null
 settle 1.5
-visible=0; for id in "$w1" "$w2"; do [[ $(frame "$id") != offscreen ]] && visible=$((visible + 1)); done
-echo "INFO activating TextEdit while its windows are hidden: focused workspace $("$cli" list-workspaces --focused), $visible/2 windows on screen"
+visible=0; for id in "$w1" "$w2"; do [[ $(state "$id") == visible ]] && visible=$((visible + 1)); done
+echo "INFO activating TextEdit while its windows are hidden: focused workspace $("$cli" list-workspaces --focused), $visible/2 windows visible"
 
 "$cli" workspace probe-a-empty
 "$cli" move-workspace-to-monitor --workspace probe-a "$other"
