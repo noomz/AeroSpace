@@ -2,6 +2,7 @@
 # Usage: script/bench-window-hiding/crash-recovery.sh
 # Stashes windows into the private Space, kills AeroSpace with SIGKILL, and checks that the
 # windows are off screen while it's dead and back on screen after relaunch.
+# Then stashes them again and checks that a normal quit (SIGINT) puts them back on screen.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 cli=./.debug/aerospace
@@ -32,6 +33,12 @@ start
 sleep 2
 back=$("$bench" --on-screen "$csv")
 echo "after relaunch, on screen: $back/${#ids[@]} (expect ${#ids[@]})"
-for id in "${ids[@]}"; do "$cli" close --window-id "$id" > /dev/null 2>&1 || true; done
+for id in "${ids[@]}"; do "$cli" move-node-to-workspace --window-id "$id" crash-test; done
+sleep 1
+echo "stashed again, on screen: $("$bench" --on-screen "$csv")/${#ids[@]} (expect 0)"
 kill -INT "$server"; wait "$server" 2> /dev/null || true
-[[ $back == "${#ids[@]}" ]] && echo "PASS" || { echo "FAIL"; exit 1; }
+sleep 1
+quit=$("$bench" --on-screen "$csv")
+echo "after quit, on screen: $quit/${#ids[@]} (expect ${#ids[@]})"
+"$bench" --close "$(pgrep -x TextEdit | head -1)" "$csv"
+[[ $back == "${#ids[@]}" && $quit == "${#ids[@]}" ]] && echo "PASS" || { echo "FAIL"; exit 1; }

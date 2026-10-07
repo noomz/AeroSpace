@@ -21,6 +21,46 @@ if let i = CommandLine.arguments.firstIndex(of: "--on-screen") {
     exit(0)
 }
 
+// `--frame <id>` prints "x y w h" from the window server, or "offscreen". Used by probe.sh
+if let i = CommandLine.arguments.firstIndex(of: "--frame") {
+    let id = UInt32(CommandLine.arguments[i + 1])!
+    let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as! [[String: Any]]
+    let bounds = list.first { $0[kCGWindowNumber as String] as? UInt32 == id }?[kCGWindowBounds as String] as? NSDictionary
+    print(bounds.flatMap { CGRect(dictionaryRepresentation: $0) }.map { "\(Int($0.minX)) \(Int($0.minY)) \(Int($0.width)) \(Int($0.height))" } ?? "offscreen")
+    exit(0)
+}
+
+// `--display <id>` prints the display that contains the window's center
+if let i = CommandLine.arguments.firstIndex(of: "--display") {
+    let id = UInt32(CommandLine.arguments[i + 1])!
+    let list = CGWindowListCopyWindowInfo(.optionIncludingWindow, id) as! [[String: Any]]
+    let rect = (list.first?[kCGWindowBounds as String] as? NSDictionary).flatMap { CGRect(dictionaryRepresentation: $0) }
+    var display: CGDirectDisplayID = 0
+    var count: UInt32 = 0
+    if let rect { CGGetDisplaysWithPoint(CGPoint(x: rect.midX, y: rect.midY), 1, &display, &count) }
+    print(count == 0 ? "none" : "\(display)")
+    exit(0)
+}
+
+@_silgen_name("_AXUIElementGetWindow")
+func _AXUIElementGetWindow(_ element: AXUIElement, _ id: inout CGWindowID) -> AXError
+
+// `--close <pid> <id,id,...>` presses the close button of those windows of that app over AX
+if let i = CommandLine.arguments.firstIndex(of: "--close") {
+    let app = AXUIElementCreateApplication(pid_t(CommandLine.arguments[i + 1])!)
+    let ids = Set(CommandLine.arguments[i + 2].split(separator: ",").compactMap { UInt32($0) })
+    var value: CFTypeRef?
+    AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value)
+    for window in value as? [AXUIElement] ?? [] {
+        var id: CGWindowID = 0
+        guard _AXUIElementGetWindow(window, &id) == .success, ids.contains(id) else { continue }
+        var button: CFTypeRef?
+        AXUIElementCopyAttributeValue(window, kAXCloseButtonAttribute as CFString, &button)
+        if let button { AXUIElementPerformAction(button as! AXUIElement, kAXPressAction as CFString) }
+    }
+    exit(0)
+}
+
 let cli = arg("--cli")
 let serverPid = pid_t(arg("--server-pid"))!
 let wsA = arg("--ws-a")
@@ -146,12 +186,16 @@ for cycle in 1 ... cycles {
     let tCmd = now()
     var tShown: Double? = nil
     var tHidden: Double? = nil
+    var hiddenPolls = 0 // A window can drop out of the on-screen list for one poll while it moves
     var frames: [UInt32: CGRect] = [:]
     while now() - t0 < pollTimeout, tShown == nil || tHidden == nil {
         frames = onScreenFrames()
         let t = now()
         if tShown == nil, targetWins.allSatisfy({ isAt($0.id, targetFrames[$0.id]!, frames) }) { tShown = t }
-        if tHidden == nil, sourceWins.allSatisfy({ isSliverOrGone($0.id, frames) }) { tHidden = t }
+        if tHidden == nil {
+            hiddenPolls = sourceWins.allSatisfy { isSliverOrGone($0.id, frames) } ? hiddenPolls + 1 : 0
+            if hiddenPolls == 2 { tHidden = t }
+        }
         usleep(1000)
     }
     usleep(300_000) // Let the apps finish redrawing before reading CPU

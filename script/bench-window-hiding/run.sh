@@ -25,7 +25,7 @@ write_config false
 server=$!
 created=()
 cleanup() {
-    for id in "${created[@]}"; do "$cli" close --window-id "$id" > /dev/null 2>&1 || true; done
+    for id in ${created[@]+"${created[@]}"}; do "$cli" close --window-id "$id" > /dev/null 2>&1 || true; done
     kill -INT "$server" 2> /dev/null || true
     wait "$server" 2> /dev/null || true
 }
