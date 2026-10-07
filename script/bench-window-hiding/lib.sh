@@ -14,6 +14,13 @@ new_window() {
     echo "$id"
 }
 
+# close_windows <app> <id>...: closes those windows without saving; never touches the app's other windows
+close_windows() {
+    local app=$1 id
+    shift
+    for id in "$@"; do osascript -e "tell application \"$app\" to close (every window whose id is $id) saving no"; done
+}
+
 # wait_tracked <cli> <id>...: waits until AeroSpace lists every id
 wait_tracked() {
     local cli=$1 all id missing

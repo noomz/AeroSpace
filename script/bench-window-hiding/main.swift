@@ -49,24 +49,6 @@ if let i = CommandLine.arguments.firstIndex(of: "--display") {
     exit(0)
 }
 
-@_silgen_name("_AXUIElementGetWindow")
-func _AXUIElementGetWindow(_ element: AXUIElement, _ id: inout CGWindowID) -> AXError
-
-if let i = CommandLine.arguments.firstIndex(of: "--close") {
-    let app = AXUIElementCreateApplication(pid_t(CommandLine.arguments[i + 1])!)
-    let ids = Set(CommandLine.arguments[i + 2].split(separator: ",").compactMap { UInt32($0) })
-    var value: CFTypeRef?
-    AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value)
-    for window in value as? [AXUIElement] ?? [] {
-        var id: CGWindowID = 0
-        guard _AXUIElementGetWindow(window, &id) == .success, ids.contains(id) else { continue }
-        var button: CFTypeRef?
-        AXUIElementCopyAttributeValue(window, kAXCloseButtonAttribute as CFString, &button)
-        if let button { AXUIElementPerformAction(button as! AXUIElement, kAXPressAction as CFString) }
-    }
-    exit(0)
-}
-
 let cli = arg("--cli")
 let serverPid = pid_t(arg("--server-pid"))!
 let wsA = arg("--ws-a")
