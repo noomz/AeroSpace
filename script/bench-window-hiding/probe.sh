@@ -2,6 +2,7 @@
 # Usage: script/bench-window-hiding/probe.sh [true|false]   (hide-windows-in-private-space, default true)
 set -uo pipefail
 cd "$(dirname "$0")/../.."
+source script/bench-window-hiding/lib.sh
 cli=./.debug/aerospace
 bench=.build/bench/bench-window-hiding
 out=$(mktemp -d)
@@ -27,11 +28,9 @@ settle() { sleep "${1:-0.7}"; }
 
 main=main; other=secondary
 [[ $("$cli" list-monitors | wc -l) -ge 2 ]] || other=main
-before=$("$cli" list-windows --all --format '%{window-id}' | sort)
-osascript -e 'tell application "TextEdit" to make new document' -e 'tell application "TextEdit" to make new document' > /dev/null
+for _ in 1 2; do id=$(new_window TextEdit) && ids+=("$id"); done
+[[ ${#ids[@]} == 2 ]] && wait_tracked "$cli" "${ids[@]}" || { echo "FAIL setup: expected 2 new windows, got ${#ids[@]}"; exit 1; }
 settle 2
-ids=($(comm -13 <(echo "$before") <("$cli" list-windows --all --format '%{window-id}' | sort)))
-[[ ${#ids[@]} -ge 2 ]] || { echo "FAIL setup: expected 2 new windows, got ${#ids[@]}"; exit 1; }
 w1=${ids[0]}; w2=${ids[1]}
 
 [[ ${1:-true} == true ]] && hidden=offscreen || hidden=sliver

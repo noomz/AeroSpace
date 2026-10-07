@@ -3,6 +3,7 @@
 # STOCK=1 APP=... CLI=... measures a build without the private-Space option (corner only).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
+source script/bench-window-hiding/lib.sh
 out=$1; cycles=${2:-20}; per=${3:-6}; blocks=${4:-2}
 app=${APP:-./.debug/AeroSpaceApp}; cli=${CLI:-./.debug/aerospace}
 methods=(corner private-space); [[ ${STOCK:-0} == 1 ]] && methods=(corner)
@@ -34,17 +35,16 @@ for _ in $(seq 100); do "$cli" list-workspaces --focused > /dev/null 2>&1 && bre
 page="$out/page.html"
 { echo '<h1>bench</h1>'; for i in $(seq 200); do printf '<p>paragraph %s %s</p>\n' "$i" "$(printf 'lorem ipsum %.0s' $(seq 40))"; done; } > "$page"
 open -ga TextEdit && open -ga Safari && sleep 3
-before=$("$cli" list-windows --all --format '%{window-id}' | sort)
-for i in $(seq $((per / 2 * 2))); do
-    osascript -e 'tell application "TextEdit" to make new document' > /dev/null
-    osascript -e "tell application \"Safari\" to make new document with properties {URL:\"file://$PWD/$page\"}" > /dev/null
+textedit=(); safari=()
+for _ in $(seq $((per / 2 * 2))); do
+    id=$(new_window TextEdit); created+=("$id"); textedit+=("$id")
+    id=$(new_window Safari "file://$PWD/$page"); created+=("$id"); safari+=("$id")
 done
+wait_tracked "$cli" "${created[@]}"
 sleep 2
-created=($(comm -13 <(echo "$before") <("$cli" list-windows --all --format '%{window-id}' | sort)))
 echo "created ${#created[@]} windows"
-for i in "${!created[@]}"; do
-    "$cli" move-node-to-workspace --window-id "${created[$i]}" "bench-$((i % 2 == 0 ? 0 : 1))"
-done
+for id in "${textedit[@]}"; do "$cli" move-node-to-workspace --window-id "$id" bench-0; done
+for id in "${safari[@]}"; do "$cli" move-node-to-workspace --window-id "$id" bench-1; done
 for ws in bench-0 bench-1; do "$cli" list-windows --workspace "$ws" --format '%{workspace} %{window-id} %{app-name}'; done > "$out/windows.txt"
 
 for block in $(seq "$blocks"); do

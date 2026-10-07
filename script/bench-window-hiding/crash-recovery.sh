@@ -2,6 +2,7 @@
 # Usage: script/bench-window-hiding/crash-recovery.sh
 set -euo pipefail
 cd "$(dirname "$0")/../.."
+source script/bench-window-hiding/lib.sh
 cli=./.debug/aerospace
 bench=.build/bench/bench-window-hiding
 out=$(mktemp -d)
@@ -15,10 +16,10 @@ start() {
     echo "server didn't start"; exit 1
 }
 start
-before=$("$cli" list-windows --all --format '%{window-id}' | sort)
-for _ in 1 2 3; do osascript -e 'tell application "TextEdit" to make new document' > /dev/null; done
+ids=()
+for _ in 1 2 3; do id=$(new_window TextEdit); ids+=("$id"); done
+wait_tracked "$cli" "${ids[@]}"
 sleep 2
-ids=($(comm -13 <(echo "$before") <("$cli" list-windows --all --format '%{window-id}' | sort)))
 csv=$(IFS=,; echo "${ids[*]}")
 for id in "${ids[@]}"; do "$cli" move-node-to-workspace --window-id "$id" crash-test; done
 sleep 1
