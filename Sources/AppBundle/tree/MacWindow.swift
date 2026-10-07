@@ -1,9 +1,13 @@
 import AppKit
 import Common
 
+private enum HiddenState {
+    case inCorner(prevUnhiddenProportionalPositionInsideWorkspaceRect: CGPoint)
+}
+
 final class MacWindow: Window {
     let macApp: MacApp
-    private var prevUnhiddenProportionalPositionInsideWorkspaceRect: CGPoint?
+    private var hiddenState: HiddenState?
 
     @MainActor
     private init(_ id: UInt32, _ actor: MacApp, lastFloatingSize: CGSize?, parent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat, index: Int) {
@@ -123,15 +127,15 @@ final class MacWindow: Window {
     func hideInCorner(_ corner: OptimalHideCorner) async throws {
         guard let nodeMonitor else { return }
         // Don't accidentally override prevUnhiddenEmulationPosition in case of subsequent `hideInCorner` calls
-        if !isHiddenInCorner {
+        if !isHidden {
             guard let windowRect = try await getAxRect(.cancellable) else { return }
-            // Check for isHiddenInCorner for the second time because of the suspension point above
-            if !isHiddenInCorner {
+            // Check for isHidden for the second time because of the suspension point above
+            if !isHidden {
                 let topLeftCorner = windowRect.topLeftCorner
                 let monitorRect = windowRect.center.monitorApproximation.rect // Similar to layoutFloatingWindow. Non idempotent
                 let absolutePoint = topLeftCorner - monitorRect.topLeftCorner
-                prevUnhiddenProportionalPositionInsideWorkspaceRect =
-                    CGPoint(x: absolutePoint.x / monitorRect.width, y: absolutePoint.y / monitorRect.height)
+                hiddenState = .inCorner(prevUnhiddenProportionalPositionInsideWorkspaceRect:
+                    CGPoint(x: absolutePoint.x / monitorRect.width, y: absolutePoint.y / monitorRect.height))
                 if isFloating {
                     lastFloatingSize = windowRect.size
                 }
@@ -155,35 +159,38 @@ final class MacWindow: Window {
     }
 
     @MainActor
-    func unhideFromCorner() {
-        guard let prevUnhiddenProportionalPositionInsideWorkspaceRect else { return }
+    func unhide() {
+        guard let hiddenState else { return }
         guard let nodeWorkspace else { return } // hiding only makes sense for workspace windows
         guard let parent else { return }
 
-        switch getChildParentRelation(child: self, parent: parent) {
-            // Just a small optimization to avoid unnecessary AX calls for non floating windows
-            // Tiling windows should be unhidden with layoutRecursive anyway
-            case .floatingWindow:
-                let workspaceRect = nodeWorkspace.workspaceMonitor.rect
-                var newX = workspaceRect.topLeftX + workspaceRect.width * prevUnhiddenProportionalPositionInsideWorkspaceRect.x
-                var newY = workspaceRect.topLeftY + workspaceRect.height * prevUnhiddenProportionalPositionInsideWorkspaceRect.y
-                // todo we probably should replace lastFloatingSize with proper floating window sizing
-                // https://github.com/nikitabobko/AeroSpace/issues/1519
-                let windowWidth = lastFloatingSize?.width ?? 0
-                let windowHeight = lastFloatingSize?.height ?? 0
-                newX = newX.coerce(in: workspaceRect.minX ... max(workspaceRect.minX, workspaceRect.maxX - windowWidth))
-                newY = newY.coerce(in: workspaceRect.minY ... max(workspaceRect.minY, workspaceRect.maxY - windowHeight))
+        switch hiddenState {
+            case .inCorner(let prevUnhiddenProportionalPositionInsideWorkspaceRect):
+                switch getChildParentRelation(child: self, parent: parent) {
+                    // Just a small optimization to avoid unnecessary AX calls for non floating windows
+                    // Tiling windows should be unhidden with layoutRecursive anyway
+                    case .floatingWindow:
+                        let workspaceRect = nodeWorkspace.workspaceMonitor.rect
+                        var newX = workspaceRect.topLeftX + workspaceRect.width * prevUnhiddenProportionalPositionInsideWorkspaceRect.x
+                        var newY = workspaceRect.topLeftY + workspaceRect.height * prevUnhiddenProportionalPositionInsideWorkspaceRect.y
+                        // todo we probably should replace lastFloatingSize with proper floating window sizing
+                        // https://github.com/nikitabobko/AeroSpace/issues/1519
+                        let windowWidth = lastFloatingSize?.width ?? 0
+                        let windowHeight = lastFloatingSize?.height ?? 0
+                        newX = newX.coerce(in: workspaceRect.minX ... max(workspaceRect.minX, workspaceRect.maxX - windowWidth))
+                        newY = newY.coerce(in: workspaceRect.minY ... max(workspaceRect.minY, workspaceRect.maxY - windowHeight))
 
-                setAxFrame(CGPoint(x: newX, y: newY), nil)
-            case .macosNativeFullscreenWindow, .macosNativeHiddenAppWindow, .macosNativeMinimizedWindow,
-                 .macosPopupWindow, .tiling, .rootTilingContainer, .shimContainerRelation: break
+                        setAxFrame(CGPoint(x: newX, y: newY), nil)
+                    case .macosNativeFullscreenWindow, .macosNativeHiddenAppWindow, .macosNativeMinimizedWindow,
+                         .macosPopupWindow, .tiling, .rootTilingContainer, .shimContainerRelation: break
+                }
         }
 
-        self.prevUnhiddenProportionalPositionInsideWorkspaceRect = nil
+        self.hiddenState = nil
     }
 
-    override var isHiddenInCorner: Bool {
-        prevUnhiddenProportionalPositionInsideWorkspaceRect != nil
+    override var isHidden: Bool {
+        hiddenState != nil
     }
 
     override func getAxSize(_ cm: CancellationMode) async throws -> CGSize? {
