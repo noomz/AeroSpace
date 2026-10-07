@@ -32,7 +32,8 @@ for _ in $(seq 100); do "$cli" list-workspaces --focused > /dev/null 2>&1 && bre
 "$cli" list-workspaces --focused > /dev/null || { echo "server didn't start (Accessibility permission?)"; exit 1; }
 
 page="$out/page.html"
-python3 -c "print('<h1>bench</h1>' + ''.join(f'<p>paragraph {i} ' + 'lorem ipsum ' * 40 + '</p>' for i in range(200)))" > "$page"
+{ echo '<h1>bench</h1>'; for i in $(seq 200); do printf '<p>paragraph %s %s</p>\n' "$i" "$(printf 'lorem ipsum %.0s' $(seq 40))"; done; } > "$page"
+open -ga TextEdit && open -ga Safari && sleep 3
 before=$("$cli" list-windows --all --format '%{window-id}' | sort)
 for i in $(seq $((per / 2 * 2))); do
     osascript -e 'tell application "TextEdit" to make new document' > /dev/null
@@ -44,7 +45,7 @@ echo "created ${#created[@]} windows"
 for i in "${!created[@]}"; do
     "$cli" move-node-to-workspace --window-id "${created[$i]}" "bench-$((i % 2 == 0 ? 0 : 1))"
 done
-"$cli" list-windows --workspace bench-0 --workspace bench-1 --format '%{workspace} %{window-id} %{app-name}' > "$out/windows.txt" || true
+for ws in bench-0 bench-1; do "$cli" list-windows --workspace "$ws" --format '%{workspace} %{window-id} %{app-name}'; done > "$out/windows.txt"
 
 for block in $(seq "$blocks"); do
     for m in "${methods[@]}"; do
@@ -55,4 +56,8 @@ for block in $(seq "$blocks"); do
         echo "block $block $m done"
     done
 done
-python3 script/bench-window-hiding/summarize.py "$out"/*.tsv | tee "$out/summary.txt"
+if /usr/bin/xcrun --find python3 > /dev/null 2>&1 || [[ -x /opt/homebrew/bin/python3 ]]; then
+    python3 script/bench-window-hiding/summarize.py "$out"/*.tsv | tee "$out/summary.txt"
+else
+    echo "no python3: run script/bench-window-hiding/summarize.py $out/*.tsv elsewhere"
+fi
