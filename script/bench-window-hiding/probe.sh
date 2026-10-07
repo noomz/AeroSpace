@@ -7,7 +7,10 @@ bench=.build/bench/bench-window-hiding
 out=$(mktemp -d)
 mkdir -p .build/bench
 [[ $bench -nt script/bench-window-hiding/main.swift ]] || swiftc -O script/bench-window-hiding/main.swift -o "$bench" || exit 1
-printf 'config-version = 2\nhide-windows-in-private-space = %s\n' "${1:-true}" > "$out/config.toml"
+# A workspace that was never visible opens on the main monitor, whichever monitor has focus.
+# probe-a stays unassigned because the probe moves it between monitors.
+printf '%s\n' 'config-version = 2' "hide-windows-in-private-space = ${1:-true}" '[workspace-to-monitor-force-assignment]' \
+    "probe-a-empty = 'main'" "probe-b = 'secondary'" "probe-b-empty = 'secondary'" > "$out/config.toml"
 ./.debug/AeroSpaceApp --config-path "$out/config.toml" > "$out/server.log" 2>&1 &
 server=$!
 ids=()
