@@ -180,7 +180,7 @@ for _ in 0 ..< warmUpRounds {
     steady[wsB] = switchAndRecordSteadyFrames(wsB, winsB)
 }
 
-let header = "label\tcycle\ttarget\twindows\tcmd_ms\tshown_ms\thidden_ms\tsettled_ms\tapp_cpu_ms\tserver_cpu_ms\tleaked_windows\tleaked_px\ttimed_out\ttimeout_ms\n"
+let header = "label\tcycle\ttarget\twindows\tcmd_ms\tshown_ms\thidden_ms\tsettled_ms\tapp_cpu_ms\tserver_cpu_ms\tleaked_windows\tleaked_px\ttimed_out\ttimeout_ms\tmax_frame_miss_px\n"
 var tsv = header
 for cycle in 1 ... cycles {
     let (target, targetWins, sourceWins) = cycle % 2 == 1 ? (wsA, winsA, winsB) : (wsB, winsB, winsA)
@@ -209,13 +209,17 @@ for cycle in 1 ... cycles {
     let appCpu = appPids.map(cpuMs).reduce(0, +) - appCpu0
     let serverCpu = cpuMs(serverPid) - serverCpu0
     frames = onScreenFrames()
+    let maxFrameMiss = targetWins.map { w -> Double in
+        guard let r = frames[w.id], let want = targetFrames[w.id] else { return -1 }
+        return Double(max(abs(r.minX - want.minX), abs(r.minY - want.minY), abs(r.width - want.width), abs(r.height - want.height)))
+    }.max() ?? 0
     let leaked = sourceWins.filter { frames[$0.id] != nil }
     let leakedPx = leaked.reduce(0) { $0 + visibleArea(frames[$1.id]!) }
     func ms(_ t: Double?) -> String { t.map { String(format: "%.2f", ($0 - t0) * 1000) } ?? "NA" }
     let settled = tShown.flatMap { s in tHidden.map { max(s, $0) } }
     tsv += [label, "\(cycle)", target, "\(targetWins.count + sourceWins.count)", ms(tCmd), ms(tShown), ms(tHidden), ms(settled),
             String(format: "%.2f", appCpu), String(format: "%.2f", serverCpu), "\(leaked.count)", String(format: "%.0f", leakedPx),
-            settled == nil ? "1" : "0", String(format: "%.0f", pollTimeout * 1000)].joined(separator: "\t") + "\n"
+            settled == nil ? "1" : "0", String(format: "%.0f", pollTimeout * 1000), String(format: "%.0f", maxFrameMiss)].joined(separator: "\t") + "\n"
 }
 try! tsv.write(to: outUrl, atomically: true, encoding: .utf8)
 print(tsv, terminator: "")
