@@ -168,7 +168,7 @@ private func layoutWorkspaces() async throws {
     if screenSleepWakeInProgress { return }
     if !TrayMenuModel.shared.isEnabled {
         for workspace in Workspace.all {
-            workspace.allLeafWindowsRecursive.forEach { ($0 as! MacWindow).unhideFromCorner() } // todo as!
+            try await unhide(workspace.allLeafWindowsRecursive as! [MacWindow], monitor: workspace.workspaceMonitor) // todo as!
             try await workspace.layoutWorkspace() // Unhide tiling windows from corner
         }
         return
@@ -202,25 +202,38 @@ private func layoutWorkspaces() async throws {
     // to reduce flicker, first unhide visible workspaces, then hide invisible ones
     for monitor in monitors {
         let workspace = monitor.activeWorkspace
-        workspace.allLeafWindowsRecursive.forEach { ($0 as! MacWindow).unhideFromCorner() } // todo as!
+        try await unhide(workspace.allLeafWindowsRecursive as! [MacWindow], monitor: monitor) // todo as!
         try await workspace.layoutWorkspace()
     }
+    let privateSpace = config.hideWindowsInPrivateSpace ? PrivateSpace.getOrCreate() : nil
     for workspace in Workspace.all where !workspace.isVisible {
-        let corner = monitorToOptimalHideCorner[workspace.workspaceMonitor.rect.topLeftCorner] ?? .bottomRightCorner
-        for window in workspace.allLeafWindowsRecursive {
-            let macWindow = window as! MacWindow // todo as!
-            // Skip windows in special macOS states - they're already invisible/handled by macOS
-            // and their position was already saved when entering the macOS state
-            if case .macos = window.layoutReason {
-                continue
-            }
-            if window.isSticky {
-                // Sticky windows should remain visible - don't hide them
-                macWindow.unhideFromCorner()
-            } else {
-                try await macWindow.hideInCorner(corner)
-            }
+        let monitor = workspace.workspaceMonitor
+        // Skip windows in special macOS states - they're already invisible/handled by macOS
+        // and their position was already saved when entering the macOS state
+        let windows = (workspace.allLeafWindowsRecursive as! [MacWindow]).filter { // todo as!
+            if case .macos = $0.layoutReason { false } else { true }
         }
+        // Sticky windows should remain visible - don't hide them
+        try await unhide(windows.filter(\.isSticky), monitor: monitor)
+        let hideable = windows.filter { !$0.isSticky }
+        let toStash = privateSpace == nil ? [] : hideable.filter(\.canHideInPrivateSpace)
+        let toCorner = privateSpace == nil ? hideable : hideable.filter { !$0.canHideInPrivateSpace }
+        let hiddenByOtherMethod = toStash.filter { $0.isHidden && !$0.isHiddenInPrivateSpace } + toCorner.filter(\.isHiddenInPrivateSpace)
+        try await unhide(hiddenByOtherMethod, monitor: monitor)
+        let toHide = toStash.filter { !$0.isHidden }
+        let stashed = privateSpace?.stash(toHide, monitorRect: monitor.rect) ?? true
+        let corner = monitorToOptimalHideCorner[monitor.rect.topLeftCorner] ?? .bottomRightCorner
+        for window in stashed ? toCorner : toCorner + toHide {
+            try await window.hideInCorner(corner)
+        }
+    }
+}
+
+@MainActor
+private func unhide(_ windows: [MacWindow], monitor: MonitorInfo) async throws {
+    PrivateSpace.current?.unstash(windows.filter(\.isHiddenInPrivateSpace).map(\.windowId), toDisplayAt: monitor.rect.center)
+    for window in windows {
+        try await window.unhide()
     }
 }
 

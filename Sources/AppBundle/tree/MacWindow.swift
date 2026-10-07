@@ -4,6 +4,8 @@ import Common
 final class MacWindow: Window {
     let macApp: MacApp
     private var prevUnhiddenProportionalPositionInsideWorkspaceRect: CGPoint?
+    /// The monitor the window was on when it moved into the private Space; nil while it isn't there
+    private var privateSpaceMonitorRect: Rect?
 
     @MainActor
     private init(_ id: UInt32, _ actor: MacApp, lastFloatingSize: CGSize?, parent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat, index: Int) {
@@ -36,7 +38,7 @@ final class MacWindow: Window {
 
         try await debugWindowsIfRecording(window, .cancellable)
         if try await !restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: window) {
-            await tryOnWindowDetected(window)
+            await runOnWindowDetected(ifConventional: window)
         }
         return window
     }
@@ -80,6 +82,7 @@ final class MacWindow: Window {
         if MacWindow.allWindowsMap.removeValue(forKey: windowId) == nil {
             return
         }
+        returnToScreenIfInPrivateSpace()
         if !skipClosedWindowsCache { cacheClosedWindowIfNeeded() }
         let parent = unbindFromParent().parent
         let deadWindowWorkspace = parent.nodeWorkspace
@@ -217,9 +220,51 @@ final class MacWindow: Window {
         }
     }
 
-    override var isHiddenInCorner: Bool {
-        prevUnhiddenProportionalPositionInsideWorkspaceRect != nil
+    @MainActor
+    func markHiddenInPrivateSpace(monitorRect: Rect) {
+        privateSpaceMonitorRect = monitorRect
     }
+
+    var isHiddenInPrivateSpace: Bool { privateSpaceMonitorRect != nil }
+
+    var canHideInPrivateSpace: Bool {
+        guard let parent else { return false }
+        return switch getChildParentRelation(child: self, parent: parent) {
+            case .tiling, .floatingWindow: true
+            case .macosNativeFullscreenWindow, .macosNativeHiddenAppWindow, .macosNativeMinimizedWindow,
+                 .macosPopupWindow, .rootTilingContainer, .shimContainerRelation: false
+        }
+    }
+
+    @MainActor
+    private func returnToScreenIfInPrivateSpace() {
+        if let privateSpaceMonitorRect {
+            PrivateSpace.current?.unstash([windowId], toDisplayAt: privateSpaceMonitorRect.center)
+        }
+    }
+
+    /// The caller moves windows out of the private Space first, in one batch
+    @MainActor
+    func unhide() async throws {
+        if let monitorRect = privateSpaceMonitorRect {
+            privateSpaceMonitorRect = nil
+            // The private Space keeps the frame, so a floating window whose workspace changed monitors needs a move
+            if isFloating, let workspaceRect = nodeWorkspace?.workspaceMonitor.rect, workspaceRect != monitorRect,
+               let windowRect = try await getAxRect(.cancellable)
+            {
+                let proportional = windowRect.topLeftCorner - monitorRect.topLeftCorner
+                setAxFrame(CGPoint(
+                    x: workspaceRect.topLeftX + workspaceRect.width * proportional.x / monitorRect.width,
+                    y: workspaceRect.topLeftY + workspaceRect.height * proportional.y / monitorRect.height,
+                ), nil)
+            }
+        }
+        unhideFromCorner()
+    }
+
+    var isHiddenInCorner: Bool { prevUnhiddenProportionalPositionInsideWorkspaceRect != nil }
+
+    override var isHidden: Bool { isHiddenInCorner || isHiddenInPrivateSpace }
 
     override func getAxSize(_ cm: CancellationMode) async throws -> CGSize? {
         try await macApp.getAxSize(windowId, cm)
@@ -337,10 +382,22 @@ extension WindowDetectedCallback {
 }
 
 @MainActor
-func tryOnWindowDetected(_ window: Window) async {
+func runOnWindowDetected(ifConventional window: Window) async {
     switch window.windowParentCases {
         case .tilingContainer, .floatingWindowsContainer, .macosMinimizedWindowsContainer,
              .macosFullscreenWindowsContainer, .macosHiddenAppsWindowsContainer:
+            let layout = global_layoutForNextDetectedWindow
+            global_layoutForNextDetectedWindow = nil
+            defer {
+                if let layout {
+                    await LayoutCommand(args: LayoutCmdArgs(rawArgs: [], toggleBetween: [layout]))
+                        .run(.defaultEnv.withWindowId(window.windowId), .emptyStdin)
+                }
+            }
+            if let layout {
+                await LayoutCommand(args: LayoutCmdArgs(rawArgs: [], toggleBetween: [layout]))
+                    .run(.defaultEnv.withWindowId(window.windowId), .emptyStdin)
+            }
             _ = await onWindowDetected(.defaultEnv, CmdIoImpl.emptyStdinIgnoringOut, window)
         case .macosPopupWindowsContainer, .unbound:
             break
