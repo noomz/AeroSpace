@@ -3,6 +3,7 @@ import Common
 
 private enum HiddenState {
     case inCorner(prevUnhiddenProportionalPositionInsideWorkspaceRect: CGPoint)
+    case inPrivateSpace(monitorRect: Rect)
 }
 
 final class MacWindow: Window {
@@ -84,6 +85,7 @@ final class MacWindow: Window {
         if MacWindow.allWindowsMap.removeValue(forKey: windowId) == nil {
             return
         }
+        returnToScreenIfInPrivateSpace()
         if !skipClosedWindowsCache { cacheClosedWindowIfNeeded() }
         let parent = unbindFromParent().parent
         let deadWindowWorkspace = parent.nodeWorkspace
@@ -159,10 +161,36 @@ final class MacWindow: Window {
     }
 
     @MainActor
-    func unhide() {
+    func markHiddenInPrivateSpace(monitorRect: Rect) {
+        hiddenState = .inPrivateSpace(monitorRect: monitorRect)
+    }
+
+    var isHiddenInPrivateSpace: Bool {
+        if case .inPrivateSpace = hiddenState { true } else { false }
+    }
+
+    var canHideInPrivateSpace: Bool {
+        guard let parent else { return false }
+        return switch getChildParentRelation(child: self, parent: parent) {
+            case .tiling, .floatingWindow: true
+            case .macosNativeFullscreenWindow, .macosNativeHiddenAppWindow, .macosNativeMinimizedWindow,
+                 .macosPopupWindow, .rootTilingContainer, .shimContainerRelation: false
+        }
+    }
+
+    @MainActor
+    private func returnToScreenIfInPrivateSpace() {
+        if case .inPrivateSpace(let monitorRect) = hiddenState {
+            PrivateSpace.current?.unstash([windowId], toDisplayAt: monitorRect.center)
+        }
+    }
+
+    @MainActor
+    func unhide() async throws {
         guard let hiddenState else { return }
         guard let nodeWorkspace else { return } // hiding only makes sense for workspace windows
         guard let parent else { return }
+        self.hiddenState = nil
 
         switch hiddenState {
             case .inCorner(let prevUnhiddenProportionalPositionInsideWorkspaceRect):
@@ -184,9 +212,16 @@ final class MacWindow: Window {
                     case .macosNativeFullscreenWindow, .macosNativeHiddenAppWindow, .macosNativeMinimizedWindow,
                          .macosPopupWindow, .tiling, .rootTilingContainer, .shimContainerRelation: break
                 }
+            case .inPrivateSpace(let monitorRect):
+                let workspaceRect = nodeWorkspace.workspaceMonitor.rect
+                if isFloating, workspaceRect != monitorRect, let windowRect = try await getAxRect(.cancellable) {
+                    let proportional = (windowRect.topLeftCorner - monitorRect.topLeftCorner)
+                    setAxFrame(CGPoint(
+                        x: workspaceRect.topLeftX + workspaceRect.width * proportional.x / monitorRect.width,
+                        y: workspaceRect.topLeftY + workspaceRect.height * proportional.y / monitorRect.height,
+                    ), nil)
+                }
         }
-
-        self.hiddenState = nil
     }
 
     override var isHidden: Bool {

@@ -17,6 +17,10 @@ start-at-login = false
 # After setting this to true, reload once manually to start the auto-reloading
 auto-reload-config = false
 
+# Hide the windows of invisible workspaces in a private macOS Space instead of the screen corner.
+# Falls back to the screen corner if macOS doesn't allow creating the private Space
+hide-windows-in-private-space = true
+
 # Normalizations. See: https://nikitabobko.github.io/AeroSpace/guide#normalization
 enable-normalization-flatten-containers = true
 enable-normalization-opposite-orientation-for-nested-containers = true

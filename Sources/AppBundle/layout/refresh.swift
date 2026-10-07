@@ -156,7 +156,7 @@ enum OptimalHideCorner {
 private func layoutWorkspaces() async throws {
     if !TrayMenuModel.shared.isEnabled {
         for workspace in Workspace.all {
-            workspace.allLeafWindowsRecursive.forEach { ($0 as! MacWindow).unhide() } // todo as!
+            try await unhide(workspace.allLeafWindowsRecursive as! [MacWindow], monitor: workspace.workspaceMonitor) // todo as!
             try await workspace.layoutWorkspace() // Unhide tiling windows from corner
         }
         return
@@ -190,14 +190,30 @@ private func layoutWorkspaces() async throws {
     // to reduce flicker, first unhide visible workspaces, then hide invisible ones
     for monitor in monitors {
         let workspace = monitor.activeWorkspace
-        workspace.allLeafWindowsRecursive.forEach { ($0 as! MacWindow).unhide() } // todo as!
+        try await unhide(workspace.allLeafWindowsRecursive as! [MacWindow], monitor: monitor) // todo as!
         try await workspace.layoutWorkspace()
     }
+    let privateSpace = config.hideWindowsInPrivateSpace ? PrivateSpace.getOrCreate() : nil
     for workspace in Workspace.all where !workspace.isVisible {
-        let corner = monitorToOptimalHideCorner[workspace.workspaceMonitor.rect.topLeftCorner] ?? .bottomRightCorner
-        for window in workspace.allLeafWindowsRecursive {
-            try await (window as! MacWindow).hideInCorner(corner) // todo as!
+        let monitor = workspace.workspaceMonitor
+        let windows = workspace.allLeafWindowsRecursive as! [MacWindow] // todo as!
+        let toStash = privateSpace == nil ? [] : windows.filter(\.canHideInPrivateSpace)
+        let toCorner = privateSpace == nil ? windows : windows.filter { !$0.canHideInPrivateSpace }
+        let hiddenByOtherMethod = toStash.filter { $0.isHidden && !$0.isHiddenInPrivateSpace } + toCorner.filter(\.isHiddenInPrivateSpace)
+        try await unhide(hiddenByOtherMethod, monitor: monitor)
+        privateSpace?.stash(toStash.filter { !$0.isHidden }, monitorRect: monitor.rect)
+        let corner = monitorToOptimalHideCorner[monitor.rect.topLeftCorner] ?? .bottomRightCorner
+        for window in toCorner {
+            try await window.hideInCorner(corner)
         }
+    }
+}
+
+@MainActor
+private func unhide(_ windows: [MacWindow], monitor: MonitorInfo) async throws {
+    PrivateSpace.current?.unstash(windows.filter(\.isHiddenInPrivateSpace).map(\.windowId), toDisplayAt: monitor.rect.center)
+    for window in windows {
+        try await window.unhide()
     }
 }
 
