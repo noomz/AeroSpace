@@ -9,8 +9,8 @@ out=$1; cycles=${2:-20}; per=${3:-6}; blocks=${4:-2}
 app=${APP:-./.debug/AeroSpaceApp}; cli=${CLI:-./.debug/aerospace}
 methods=(corner private-space); [[ ${STOCK:-0} == 1 ]] && methods=(corner)
 mkdir -p "$out" .build/bench
-swiftc -O script/bench-window-hiding/main.swift -o .build/bench/bench-window-hiding
 bench=.build/bench/bench-window-hiding
+[[ $bench -nt script/bench-window-hiding/main.swift ]] || swiftc -O script/bench-window-hiding/main.swift -o "$bench"
 cfg="$out/config.toml"
 
 write_config() {

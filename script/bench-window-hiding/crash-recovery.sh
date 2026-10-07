@@ -9,7 +9,7 @@ cli=./.debug/aerospace
 bench=.build/bench/bench-window-hiding
 out=$(mktemp -d)
 mkdir -p .build/bench
-swiftc -O script/bench-window-hiding/main.swift -o "$bench"
+[[ $bench -nt script/bench-window-hiding/main.swift ]] || swiftc -O script/bench-window-hiding/main.swift -o "$bench"
 printf 'config-version = 2\nhide-windows-in-private-space = true\n' > "$out/config.toml"
 start() {
     ./.debug/AeroSpaceApp --config-path "$out/config.toml" >> "$out/server.log" 2>&1 &

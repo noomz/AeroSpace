@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Usage: script/bench-window-hiding/probe.sh [true|false]   (hide-windows-in-private-space, default true)
 # Behavior checks for a hiding method on a debug AeroSpace with two TextEdit windows on two monitors.
-# Prints one PASS/FAIL line per check. Needs 2 monitors.
+# Prints one PASS/FAIL line per check. With one monitor, the cross-monitor checks print SKIP.
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 cli=./.debug/aerospace
 bench=.build/bench/bench-window-hiding
 out=$(mktemp -d)
 mkdir -p .build/bench
-swiftc -O script/bench-window-hiding/main.swift -o "$bench" || exit 1
+[[ $bench -nt script/bench-window-hiding/main.swift ]] || swiftc -O script/bench-window-hiding/main.swift -o "$bench" || exit 1
 printf 'config-version = 2\nhide-windows-in-private-space = %s\n' "${1:-true}" > "$out/config.toml"
 ./.debug/AeroSpaceApp --config-path "$out/config.toml" > "$out/server.log" 2>&1 &
 server=$!
@@ -25,6 +25,7 @@ frame() { "$bench" --frame "$1"; }
 settle() { sleep "${1:-0.7}"; }
 
 main=main; other=secondary
+[[ $("$cli" list-monitors | wc -l) -ge 2 ]] || other=main
 before=$("$cli" list-windows --all --format '%{window-id}' | sort)
 osascript -e 'tell application "TextEdit" to make new document' -e 'tell application "TextEdit" to make new document' > /dev/null
 settle 2
@@ -63,4 +64,5 @@ echo "INFO activating TextEdit while its windows are hidden: focused workspace $
 "$cli" move-workspace-to-monitor --workspace probe-a "$other"
 "$cli" focus-monitor "$other"; "$cli" workspace probe-a
 settle
-check "floating window follows its workspace to the other monitor" "$("$bench" --display "$w1")" "$display_other"
+[[ $other == main ]] && echo "SKIP floating window follows its workspace to the other monitor: one monitor" ||
+    check "floating window follows its workspace to the other monitor" "$("$bench" --display "$w1")" "$display_other"
