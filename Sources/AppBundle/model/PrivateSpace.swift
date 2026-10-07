@@ -20,47 +20,65 @@ final class PrivateSpace {
             eprint("Can't create a private Space. Falling back to hiding windows in the screen corner")
             return nil
         }
-        let space = PrivateSpace(PrivateSpaceJournal(session: bootAndLoginSessionId(), spaceId: spaceId, windowIds: []))
-        space.journal.write()
-        current = space
-        return space
+        let journal = PrivateSpaceJournal(session: bootAndLoginSessionId(), spaceId: spaceId, windowIds: [])
+        guard journal.write() else {
+            skyLight.destroySpace(spaceId)
+            isUnsupported = true
+            eprint("Falling back to hiding windows in the screen corner")
+            return nil
+        }
+        current = PrivateSpace(journal)
+        return current
     }
 
-    func stash(_ windows: [MacWindow], monitorRect: Rect) {
-        guard let skyLight, !windows.isEmpty else { return }
+    /// Returns false when the windows weren't stashed, because a crash would strand windows the journal doesn't name
+    func stash(_ windows: [MacWindow], monitorRect: Rect) -> Bool {
+        guard let skyLight else { return false }
+        if windows.isEmpty { return true }
         let windowIds = windows.map(\.windowId)
-        journal.windowIds.formUnion(windowIds)
-        journal.write()
+        var updated = journal
+        updated.windowIds.formUnion(windowIds)
+        guard updated.write() else { return false }
+        journal = updated
         skyLight.moveWindows(windowIds, toSpace: journal.spaceId)
         windows.forEach { $0.markHiddenInPrivateSpace(monitorRect: monitorRect) }
+        return true
     }
 
     func unstash(_ windowIds: [UInt32], toDisplayAt point: CGPoint) {
         guard let skyLight, !windowIds.isEmpty else { return }
         skyLight.moveWindows(windowIds, toSpace: skyLight.desktopSpace(ofDisplayAt: point))
         journal.windowIds.subtract(windowIds)
-        journal.write()
+        _ = journal.write() // A stale entry only names a window that is already back
     }
 
     func restoreWindowsAndDestroy() {
-        PrivateSpace.restore(PrivateSpaceRecovery(windowIdsToRestore: journal.windowIds.sorted(), spaceIdToDestroy: journal.spaceId))
-        PrivateSpaceJournal.delete()
+        PrivateSpace.restore(journal, PrivateSpaceRecovery(windowIdsToRestore: journal.windowIds.sorted(), spaceIdToDestroy: journal.spaceId))
         PrivateSpace.current = nil
     }
 
     static func recoverFromJournal() {
         guard let journal = PrivateSpaceJournal.read() else { return }
-        restore(PrivateSpaceRecovery(journal, session: bootAndLoginSessionId(), userVisibleSpaceIds: skyLight?.userVisibleSpaceIds() ?? []))
-        PrivateSpaceJournal.delete()
+        restore(journal, PrivateSpaceRecovery(journal, session: bootAndLoginSessionId(), userVisibleSpaceIds: skyLight?.userVisibleSpaceIds() ?? []))
     }
 
-    private static func restore(_ recovery: PrivateSpaceRecovery) {
+    private static func restore(_ journal: PrivateSpaceJournal, _ recovery: PrivateSpaceRecovery) {
         guard let skyLight else { return }
         Dictionary(grouping: recovery.windowIdsToRestore) { skyLight.desktopSpace(ofDisplayAt: windowCenter($0) ?? .zero) }
             .forEach { space, windowIds in skyLight.moveWindows(windowIds, toSpace: space) }
+        // Other connections can't see the private Space, so a stranded window may report no Space at all.
+        // A window that no longer exists can't be brought back and doesn't count
+        let userSpaceIds = skyLight.userVisibleSpaceIds()
+        let stranded = recovery.windowIdsToRestore.filter { windowCenter($0) != nil && skyLight.spaceIds(ofWindow: $0).isDisjoint(with: userSpaceIds) }
+        if let left = journal.afterRestore(stranded: stranded.toSet()) {
+            eprint("\(left.windowIds.count) windows are still in the private Space. AeroSpace retries on the next launch")
+            _ = left.write()
+            return
+        }
         if let spaceId = recovery.spaceIdToDestroy {
             skyLight.destroySpace(spaceId)
         }
+        PrivateSpaceJournal.delete()
     }
 }
 
@@ -77,12 +95,20 @@ struct PrivateSpaceJournal: Codable, Equatable {
         (try? Data(contentsOf: url)).flatMap { try? JSONDecoder().decode(PrivateSpaceJournal.self, from: $0) }
     }
 
-    func write() {
+    func write() -> Bool {
         do {
             try JSONEncoder().encode(self).write(to: PrivateSpaceJournal.url, options: .atomic)
+            return true
         } catch {
             eprint("Can't write the private Space journal: \(error)")
+            return false
         }
+    }
+
+    /// The journal to keep after a restore: the windows that are still stranded, or nil once every window is back
+    func afterRestore(stranded: Set<UInt32>) -> PrivateSpaceJournal? {
+        let left = windowIds.intersection(stranded)
+        return left.isEmpty ? nil : PrivateSpaceJournal(session: session, spaceId: spaceId, windowIds: left)
     }
 
     static func delete() {
@@ -146,6 +172,7 @@ private func windowCenter(_ windowId: UInt32) -> CGPoint? {
 
     private let connection: Int32
     private let copyManagedDisplaySpaces: @convention(c) (Int32) -> Unmanaged<CFArray>?
+    private let copySpacesForWindows: @convention(c) (Int32, Int32, CFArray) -> Unmanaged<CFArray>?
     private let createOperation: AnyClass
     private let moveOperation: AnyClass
     private let destroyOperation: AnyClass
@@ -154,12 +181,14 @@ private func windowCenter(_ windowId: UInt32) -> CGPoint? {
         guard let handle = unsafe dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_NOW),
               let mainConnectionId = unsafe dlsym(handle, "SLSMainConnectionID"),
               let copySpaces = unsafe dlsym(handle, "SLSCopyManagedDisplaySpaces"),
+              let copyWindowSpaces = unsafe dlsym(handle, "SLSCopySpacesForWindows"),
               let create = NSClassFromString("SLSBridgedSpaceCreateOperation"),
               let move = NSClassFromString("SLSBridgedSpaceAddWindowsAndRemoveFromSpacesOperation"),
               let destroy = NSClassFromString("SLSBridgedSpaceDestroyOperation")
         else { return nil }
         connection = unsafe unsafeBitCast(mainConnectionId, to: (@convention(c) () -> Int32).self)()
         unsafe copyManagedDisplaySpaces = unsafeBitCast(copySpaces, to: (@convention(c) (Int32) -> Unmanaged<CFArray>?).self)
+        unsafe copySpacesForWindows = unsafeBitCast(copyWindowSpaces, to: (@convention(c) (Int32, Int32, CFArray) -> Unmanaged<CFArray>?).self)
         createOperation = create
         moveOperation = move
         destroyOperation = destroy
@@ -201,6 +230,12 @@ private func windowCenter(_ windowId: UInt32) -> CGPoint? {
             return spaceId(current)
         }
         return (display["Spaces"] as? [[String: Any]] ?? []).first(where: isDesktop).map(spaceId) ?? 0
+    }
+
+    func spaceIds(ofWindow windowId: UInt32) -> Set<UInt64> {
+        let allSpaces: Int32 = 7
+        let ids = unsafe copySpacesForWindows(connection, allSpaces, [NSNumber(value: windowId)] as CFArray)?.takeRetainedValue() as? [NSNumber]
+        return (ids ?? []).map(\.uint64Value).toSet()
     }
 
     func userVisibleSpaceIds() -> Set<UInt64> {

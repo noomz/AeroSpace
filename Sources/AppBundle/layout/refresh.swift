@@ -201,9 +201,10 @@ private func layoutWorkspaces() async throws {
         let toCorner = privateSpace == nil ? windows : windows.filter { !$0.canHideInPrivateSpace }
         let hiddenByOtherMethod = toStash.filter { $0.isHidden && !$0.isHiddenInPrivateSpace } + toCorner.filter(\.isHiddenInPrivateSpace)
         try await unhide(hiddenByOtherMethod, monitor: monitor)
-        privateSpace?.stash(toStash.filter { !$0.isHidden }, monitorRect: monitor.rect)
+        let toHide = toStash.filter { !$0.isHidden }
+        let stashed = privateSpace?.stash(toHide, monitorRect: monitor.rect) ?? true
         let corner = monitorToOptimalHideCorner[monitor.rect.topLeftCorner] ?? .bottomRightCorner
-        for window in toCorner {
+        for window in stashed ? toCorner : toCorner + toHide {
             try await window.hideInCorner(corner)
         }
     }

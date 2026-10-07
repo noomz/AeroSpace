@@ -26,6 +26,17 @@ final class PrivateSpaceTest: XCTestCase {
         )
     }
 
+    func testJournalKeepsWindowsStillStrandedAfterRestore() {
+        assertEquals(
+            journal.afterRestore(stranded: [20, 99]),
+            PrivateSpaceJournal(session: "boot/login", spaceId: 7, windowIds: [20]),
+        )
+    }
+
+    func testJournalIsDoneWhenEveryWindowIsBack() {
+        assertEquals(journal.afterRestore(stranded: []), nil)
+    }
+
     func testJournalSurvivesEncoding() throws {
         let data = try JSONEncoder().encode(journal)
         assertEquals(try JSONDecoder().decode(PrivateSpaceJournal.self, from: data), journal)
