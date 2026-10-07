@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
 # Usage: script/bench-window-hiding/crash-recovery.sh
-# Stashes windows into the private Space, kills AeroSpace with SIGKILL, and checks that the
-# windows are off screen while it's dead and back on screen after relaunch.
-# Then stashes them again and checks that a normal quit (SIGINT) puts them back on screen.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 cli=./.debug/aerospace

@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 # Usage: script/bench-window-hiding/probe.sh [true|false]   (hide-windows-in-private-space, default true)
-# Behavior checks for a hiding method on a debug AeroSpace with two TextEdit windows on two monitors.
-# Prints one PASS/FAIL line per check. With one monitor, the cross-monitor checks print SKIP.
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 cli=./.debug/aerospace

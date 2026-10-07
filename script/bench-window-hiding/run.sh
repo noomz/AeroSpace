@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 # Usage: script/bench-window-hiding/run.sh <out-dir> [cycles=20] [windows-per-workspace=6] [blocks=2]
-# Runs a debug AeroSpace with a minimal config, opens TextEdit and Safari windows on two workspaces,
-# and measures workspace switches with corner and private-Space hiding in alternating blocks.
 # STOCK=1 APP=... CLI=... measures a build without the private-Space option (corner only).
 set -euo pipefail
 cd "$(dirname "$0")/../.."

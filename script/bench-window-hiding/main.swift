@@ -1,7 +1,4 @@
-// Measures workspace switches of a running AeroSpace from outside, using window server truth.
 // Usage: bench-window-hiding --cli <aerospace> --server-pid <pid> --ws-a A --ws-b B --cycles N --label L --out <file.tsv>
-// Each row is one switch. `shown`: every window of the target workspace is on screen at its steady frame.
-// `hidden`: no window of the source workspace shows more than a 2 px sliver on any display.
 import AppKit
 import Darwin
 
@@ -12,7 +9,6 @@ func arg(_ name: String) -> String {
     return CommandLine.arguments[i + 1]
 }
 
-// `--on-screen <id,id,...>` prints how many of the windows are on screen and exits. Used by crash-recovery.sh
 if let i = CommandLine.arguments.firstIndex(of: "--on-screen") {
     let ids = CommandLine.arguments[i + 1].split(separator: ",").compactMap { UInt32($0) }
     let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as! [[String: Any]]
@@ -21,7 +17,6 @@ if let i = CommandLine.arguments.firstIndex(of: "--on-screen") {
     exit(0)
 }
 
-// `--frame <id>` prints "x y w h" from the window server, or "offscreen". Used by probe.sh
 if let i = CommandLine.arguments.firstIndex(of: "--frame") {
     let id = UInt32(CommandLine.arguments[i + 1])!
     let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as! [[String: Any]]
@@ -30,7 +25,6 @@ if let i = CommandLine.arguments.firstIndex(of: "--frame") {
     exit(0)
 }
 
-// `--display <id>` prints the display that contains the window's center
 if let i = CommandLine.arguments.firstIndex(of: "--display") {
     let id = UInt32(CommandLine.arguments[i + 1])!
     let list = CGWindowListCopyWindowInfo(.optionIncludingWindow, id) as! [[String: Any]]
@@ -45,7 +39,6 @@ if let i = CommandLine.arguments.firstIndex(of: "--display") {
 @_silgen_name("_AXUIElementGetWindow")
 func _AXUIElementGetWindow(_ element: AXUIElement, _ id: inout CGWindowID) -> AXError
 
-// `--close <pid> <id,id,...>` presses the close button of those windows of that app over AX
 if let i = CommandLine.arguments.firstIndex(of: "--close") {
     let app = AXUIElementCreateApplication(pid_t(CommandLine.arguments[i + 1])!)
     let ids = Set(CommandLine.arguments[i + 2].split(separator: ",").compactMap { UInt32($0) })
@@ -70,6 +63,9 @@ let label = arg("--label")
 let outUrl = URL(fileURLWithPath: arg("--out"))
 let pollTimeout = 3.0
 let stableFor = 0.15
+let warmUpRounds = 2
+let consecutiveHiddenPolls = 2
+let appRedrawDelayUs: UInt32 = 300_000
 
 @discardableResult
 func aerospace(_ args: String...) -> String {
@@ -145,7 +141,6 @@ func cpuMs(_ pid: pid_t) -> Double {
 
 func now() -> Double { Double(clock_gettime_nsec_np(CLOCK_UPTIME_RAW)) / 1e9 }
 
-/// Switches and waits until every target window holds the same frame for `stableFor`
 func switchAndRecordSteadyFrames(_ ws: String, _ wins: [Win]) -> [UInt32: CGRect] {
     aerospace("workspace", ws)
     var last: [UInt32: CGRect] = [:]
@@ -166,19 +161,18 @@ let winsB = windows(wsB)
 precondition(!winsA.isEmpty && !winsB.isEmpty, "both workspaces need windows")
 let appPids = Set((winsA + winsB).map(\.pid))
 
-// Warm-up twice so lazily created state (the private Space, AX observers) is not in the first sample
 var steady: [String: [UInt32: CGRect]] = [:]
-for _ in 0 ..< 2 {
+for _ in 0 ..< warmUpRounds {
     steady[wsA] = switchAndRecordSteadyFrames(wsA, winsA)
     steady[wsB] = switchAndRecordSteadyFrames(wsB, winsB)
 }
 
-let header = "label\tcycle\ttarget\twindows\tcmd_ms\tshown_ms\thidden_ms\tsettled_ms\tapp_cpu_ms\tserver_cpu_ms\tleaked_windows\tleaked_px\ttimed_out\n"
+let header = "label\tcycle\ttarget\twindows\tcmd_ms\tshown_ms\thidden_ms\tsettled_ms\tapp_cpu_ms\tserver_cpu_ms\tleaked_windows\tleaked_px\ttimed_out\ttimeout_ms\n"
 var tsv = header
 for cycle in 1 ... cycles {
     let (target, targetWins, sourceWins) = cycle % 2 == 1 ? (wsA, winsA, winsB) : (wsB, winsB, winsA)
     let targetFrames = steady[target]!
-    usleep(300_000)
+    usleep(appRedrawDelayUs)
     let appCpu0 = appPids.map(cpuMs).reduce(0, +)
     let serverCpu0 = cpuMs(serverPid)
     let t0 = now()
@@ -186,7 +180,7 @@ for cycle in 1 ... cycles {
     let tCmd = now()
     var tShown: Double? = nil
     var tHidden: Double? = nil
-    var hiddenPolls = 0 // A window can drop out of the on-screen list for one poll while it moves
+    var hiddenPolls = 0
     var frames: [UInt32: CGRect] = [:]
     while now() - t0 < pollTimeout, tShown == nil || tHidden == nil {
         frames = onScreenFrames()
@@ -194,11 +188,11 @@ for cycle in 1 ... cycles {
         if tShown == nil, targetWins.allSatisfy({ isAt($0.id, targetFrames[$0.id]!, frames) }) { tShown = t }
         if tHidden == nil {
             hiddenPolls = sourceWins.allSatisfy { isSliverOrGone($0.id, frames) } ? hiddenPolls + 1 : 0
-            if hiddenPolls == 2 { tHidden = t }
+            if hiddenPolls == consecutiveHiddenPolls { tHidden = t }
         }
         usleep(1000)
     }
-    usleep(300_000) // Let the apps finish redrawing before reading CPU
+    usleep(appRedrawDelayUs)
     let appCpu = appPids.map(cpuMs).reduce(0, +) - appCpu0
     let serverCpu = cpuMs(serverPid) - serverCpu0
     frames = onScreenFrames()
@@ -208,7 +202,7 @@ for cycle in 1 ... cycles {
     let settled = tShown.flatMap { s in tHidden.map { max(s, $0) } }
     tsv += [label, "\(cycle)", target, "\(targetWins.count + sourceWins.count)", ms(tCmd), ms(tShown), ms(tHidden), ms(settled),
             String(format: "%.2f", appCpu), String(format: "%.2f", serverCpu), "\(leaked.count)", String(format: "%.0f", leakedPx),
-            settled == nil ? "1" : "0"].joined(separator: "\t") + "\n"
+            settled == nil ? "1" : "0", String(format: "%.0f", pollTimeout * 1000)].joined(separator: "\t") + "\n"
 }
 try! tsv.write(to: outUrl, atomically: true, encoding: .utf8)
 print(tsv, terminator: "")

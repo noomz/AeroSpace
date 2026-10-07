@@ -1,5 +1,4 @@
 # Usage: python3 summarize.py <file.tsv>...  Prints median [p10, p90] per label for every numeric column.
-# A timed-out switch counts as the 3000 ms poll timeout, so slow samples stay in the distribution.
 import csv, statistics, sys
 from collections import defaultdict
 
@@ -15,6 +14,6 @@ def q(values, p):
 for label, rs in rows.items():
     print(f"{label}: n={len(rs)} timed_out={sum(r['timed_out'] == '1' for r in rs)}")
     for c in columns:
-        values = [3000.0 if r[c] == "NA" else float(r[c]) for r in rs]
+        values = [float(r["timeout_ms"]) if r[c] == "NA" else float(r[c]) for r in rs]
         if values:
             print(f"  {c:15} median {statistics.median(values):9.2f}  p10 {q(values, 0):9.2f}  p90 {q(values, 8):9.2f}")
