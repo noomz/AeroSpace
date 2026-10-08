@@ -88,8 +88,12 @@ func runLightSession<T>(
 
         updateTrayText()
         SecureInputPanel.shared.refresh()
+        // A window in the private Space keeps the look it had when it was hidden, because its app doesn't redraw it there.
+        // Focus it before showing it, or it shows that stale look and then redraws twice
+        let focusBeforeShowing = focusBefore != focusAfter && (focusAfter as? MacWindow)?.isHiddenInPrivateSpace == true
+        if focusBeforeShowing { try await (focusAfter as? MacWindow)?.nativeFocusAndWait() } // syncFocusToMacOs
         if !event.isFocusFollowsMouse { try await layoutWorkspaces() }
-        if focusBefore != focusAfter {
+        if focusBefore != focusAfter && !focusBeforeShowing {
             focusAfter?.nativeFocus() // syncFocusToMacOs
         }
         if !event.isFocusFollowsMouse { scheduleCancellableCompleteRefreshSession(event) }
