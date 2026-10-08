@@ -138,13 +138,15 @@ final class MacApp: AbstractApp {
         {
             nsApp.activate(options: .activateIgnoringOtherApps)
         } else {
-            MacApp.focusJob = withWindowAsync(windowId, .cancellable) { [nsApp] window, job in
-                // Raise firstly to make sure that by the time we activate the app, the window would be already on top
-                window.set(Ax.isMainAttr, true)
-                AXUIElementPerformAction(window, kAXRaiseAction as CFString)
-                nsApp.activate(options: .activateIgnoringOtherApps)
-            }
+            MacApp.focusJob = withWindowAsync(windowId, .cancellable) { [nsApp] window, _ in raiseAndActivate(window, nsApp) }
         }
+    }
+
+    /// Returns once the window is raised and the app is asked to activate
+    @MainActor func nativeFocusAndWait(_ windowId: UInt32) async throws {
+        if serverArgs.isReadOnly { return }
+        MacApp.focusJob?.cancel()
+        try await withWindow(windowId, .cancellable) { [nsApp] window, _ in raiseAndActivate(window, nsApp) }
     }
 
     func setAxFrame(_ windowId: UInt32, _ topLeft: CGPoint?, _ size: CGSize?) {
@@ -357,6 +359,13 @@ final class MacApp: AbstractApp {
             try? body(window.ax, job)
         } ?? .cancelled
     }
+}
+
+// Raise firstly to make sure that by the time we activate the app, the window would be already on top
+private func raiseAndActivate(_ window: AXUIElement, _ nsApp: NSRunningApplication) {
+    window.set(Ax.isMainAttr, true)
+    AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+    nsApp.activate(options: .activateIgnoringOtherApps)
 }
 
 private final class AxWindow {

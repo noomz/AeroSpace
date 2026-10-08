@@ -119,6 +119,10 @@ final class MacWindow: Window {
         macApp.nativeFocus(windowId)
     }
 
+    @MainActor func nativeFocusAndWait() async throws {
+        try await macApp.nativeFocusAndWait(windowId)
+    }
+
     override func closeAxWindow() {
         garbageCollect(skipClosedWindowsCache: true)
         macApp.closeAndUnregisterAxWindow(windowId)
