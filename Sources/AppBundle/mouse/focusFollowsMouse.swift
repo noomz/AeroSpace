@@ -72,6 +72,8 @@ private nonisolated func axWindowIdUnderMouse(_ location: CGPoint) async -> CGWi
 
 /// The frontmost on-screen window containing the location, in window server z-order
 private func cgWindowIdUnderMouse(_ location: CGPoint) -> CGWindowID? {
+    let state = signposter.beginInterval(#function)
+    defer { signposter.endInterval(#function, state) }
     let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
     guard let windows = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else { return nil }
     for window in windows {

@@ -35,6 +35,8 @@ final class PrivateSpace {
     func stash(_ windows: [MacWindow], monitorRect: Rect) -> Bool {
         guard let skyLight else { return false }
         if windows.isEmpty { return true }
+        let state = signposter.beginInterval(#function, "windows: \(windows.count)")
+        defer { signposter.endInterval(#function, state) }
         let windowIds = windows.map(\.windowId)
         var updated = journal
         updated.windowIds.formUnion(windowIds)
@@ -47,6 +49,8 @@ final class PrivateSpace {
 
     func unstash(_ windowIds: [UInt32], toDisplayAt point: CGPoint) {
         guard let skyLight, !windowIds.isEmpty else { return }
+        let state = signposter.beginInterval(#function, "windows: \(windowIds.count)")
+        defer { signposter.endInterval(#function, state) }
         skyLight.moveWindows(windowIds, toSpace: skyLight.desktopSpace(ofDisplayAt: point))
         journal.windowIds.subtract(windowIds)
         _ = journal.write() // A stale entry only names a window that is already back
