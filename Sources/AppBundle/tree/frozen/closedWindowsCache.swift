@@ -77,6 +77,8 @@ struct FrozenWorkspace: Sendable {
     }
     let monitors = monitorInfos
     let topLeftCornerToMonitor = monitors.grouped { $0.rect.topLeftCorner }
+    // Resolve the windows before the restore detaches any tree
+    let windows: [UInt32: Window] = closedWindowsCache.windowIds.reduce(into: [:]) { $0[$1] = MacWindow.get(byId: $1) }
 
     for frozenWorkspace in closedWindowsCache.workspaces {
         let workspace = Workspace.get(byName: frozenWorkspace.name)
@@ -84,15 +86,15 @@ struct FrozenWorkspace: Sendable {
             .singleOrNil()?
             .setActiveWorkspace(workspace)
         for frozenWindow in frozenWorkspace.floatingWindows {
-            MacWindow.get(byId: frozenWindow.id)?.bindAsFloatingWindow(to: workspace)
+            windows[frozenWindow.id]?.bindAsFloatingWindow(to: workspace)
         }
         for frozenWindow in frozenWorkspace.macosUnconventionalWindows { // Will get fixed by normalizations
-            MacWindow.get(byId: frozenWindow.id)?.bindAsFloatingWindow(to: workspace)
+            windows[frozenWindow.id]?.bindAsFloatingWindow(to: workspace)
         }
         let prevRoot = workspace.rootTilingContainer // Save prevRoot into a variable to avoid it being garbage collected earlier than needed
         let potentialOrphans = prevRoot.allLeafWindowsRecursive
         prevRoot.unbindFromParent()
-        restoreTreeRecursive(frozenContainer: frozenWorkspace.rootTilingNode, parent: workspace, index: INDEX_BIND_LAST)
+        restoreTreeRecursive(frozenWorkspace.rootTilingNode, parent: workspace, index: INDEX_BIND_LAST, windows)
         for window in (potentialOrphans - workspace.rootTilingContainer.allLeafWindowsRecursive) {
             try await window.relayoutWindow(on: workspace, .cancellable, forceTile: true)
         }
@@ -106,9 +108,16 @@ struct FrozenWorkspace: Sendable {
     return true
 }
 
-@discardableResult
+/// Windows that haven't re-registered yet are skipped. Present children are bound to the end in frozen order, because a
+/// skipped sibling would make the frozen index point past the real children. Every re-registered window reruns the
+/// restore, so the order becomes exact once all windows are back. Empty containers are removed by normalizeContainers
 @MainActor
-private func restoreTreeRecursive(frozenContainer: FrozenContainer, parent: NonLeafTreeNodeObject, index: Int) -> Bool {
+private func restoreTreeRecursive(
+    _ frozenContainer: FrozenContainer,
+    parent: NonLeafTreeNodeObject,
+    index: Int,
+    _ windows: [UInt32: Window],
+) {
     let container = TilingContainer(
         parent: parent,
         adaptiveWeight: frozenContainer.weight,
@@ -117,18 +126,14 @@ private func restoreTreeRecursive(frozenContainer: FrozenContainer, parent: NonL
         index: index,
     )
 
-    for (index, child) in frozenContainer.children.enumerated() {
+    for child in frozenContainer.children {
         switch child {
             case .window(let w):
-                // Stop the loop if can't find the window, because otherwise all the subsequent windows will have incorrect index
-                guard let window = MacWindow.get(byId: w.id) else { return false }
-                window.bind(to: container, adaptiveWeight: w.weight, index: index)
+                windows[w.id]?.bind(to: container, adaptiveWeight: w.weight, index: INDEX_BIND_LAST)
             case .container(let c):
-                // There is no reason to continue
-                if !restoreTreeRecursive(frozenContainer: c, parent: container, index: index) { return false }
+                restoreTreeRecursive(c, parent: container, index: INDEX_BIND_LAST, windows)
         }
     }
-    return true
 }
 
 // Consider the following case:
