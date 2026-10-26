@@ -66,6 +66,16 @@ struct Config: ConvenienceMutable {
 }
 
 struct FocusFollowsMouse: ConvenienceMutable {
+    /// Password and biometric prompts. They are accessory agents, not managed windows, and they are frontmost
+    /// while the prompt is up. Hover must not move focus away from them.
+    static let defaultPinnedApps: Set<String> = [
+        "com.apple.SecurityAgent",
+        "com.apple.LocalAuthentication.UIAgent",
+        "com.apple.authorizationhost",
+        "com.apple.NetAuthAgent",
+        lockScreenAppBundleId,
+    ]
+
     var enabled: Bool = false
     /// Focus moves only after the mouse rests this long. Every mouse move restarts the wait
     var delayMs: Int = 0
@@ -74,6 +84,8 @@ struct FocusFollowsMouse: ConvenienceMutable {
     /// While the focused floating window covers at least this percent of its monitor's visible width and height,
     /// windows around it on that monitor don't take focus from it. 0 disables the check
     var floatingCoverPercent: Int = 0
+    /// While one of these apps is frontmost, hover does not move focus. Setting the config key replaces this set
+    var pinnedApps: Set<String> = FocusFollowsMouse.defaultPinnedApps
 }
 
 enum ConfigVersion: Int, Comparable, CaseIterable, Sendable, CustomStringConvertible {

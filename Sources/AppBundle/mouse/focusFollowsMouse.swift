@@ -30,6 +30,10 @@ import AppKit
                 try await Task.sleep(for: .milliseconds(delayMs))
                 if focus.windowOrNil != focusedBefore { return }
             }
+            // Password and Touch ID prompts are accessory agents. They are frontmost, and they are not managed
+            // windows, so focus.windowOrNil still points at the tile underneath. Read frontmost after the delay:
+            // the prompt can appear while the mouse is resting.
+            if isFocusPinnedByFrontmostApp() { return }
             guard let token: RunSessionGuard = .isServerEnabled else { return }
             try checkCancellation()
             // Hit-test, so the window macOS draws on top wins, regardless of floating/tiling/sticky.
@@ -50,12 +54,20 @@ import AppKit
             // Hidden workspaces park their windows in a monitor corner, so they can still be hit-tested.
             // Checked after the awaits above, because a workspace switch may have happened meanwhile
             guard window.nodeWorkspace == location.monitorApproximation.activeWorkspace else { return }
+            // The hit-test awaits above can outlive the moment the prompt appears
+            if isFocusPinnedByFrontmostApp() { return }
             try await runLightSession(.focusFollowsMouse, token) {
                 _ = window.focusWindow()
                 window.nativeFocus()
             }
         }
     }
+}
+
+@MainActor
+private func isFocusPinnedByFrontmostApp() -> Bool {
+    guard let bundleId = NSWorkspace.shared.frontmostApplication?.bundleIdentifier else { return false }
+    return config.focusFollowsMouse.pinnedApps.contains(bundleId)
 }
 
 @concurrent

@@ -75,6 +75,17 @@ focus-follows-mouse.edge-inset = 0
 # While the focused floating window covers at least this percent of its monitor's width and height,
 # hovering windows around it on that monitor doesn't take focus away from it. 0 disables it
 focus-follows-mouse.floating-cover-percent = 0
+# While one of these apps is frontmost, hover does not move focus.
+# Fallback when the key is omitted: SecurityAgent, LocalAuthentication.UIAgent, authorizationhost,
+# NetAuthAgent, and loginwindow (system password, Touch ID, and lock-screen prompts).
+# Setting the key replaces that fallback. Repeat those ids to extend the list.
+# focus-follows-mouse.pinned-apps = [
+#     'com.apple.SecurityAgent',
+#     'com.apple.LocalAuthentication.UIAgent',
+#     'com.apple.authorizationhost',
+#     'com.apple.NetAuthAgent',
+#     'com.apple.loginwindow',
+# ]
 
 # Possible values: (qwerty|dvorak|colemak)
 # See https://nikitabobko.github.io/AeroSpace/guide#key-mapping
