@@ -66,8 +66,8 @@ struct Config: ConvenienceMutable {
 }
 
 struct FocusFollowsMouse: ConvenienceMutable {
-    /// Password and biometric prompts. They are accessory agents, not managed windows, and they are frontmost
-    /// while the prompt is up. Hover must not move focus away from them.
+    /// Password, biometric, and lock-screen prompts. They are accessory agents, not managed windows, and they
+    /// are frontmost while the prompt is up. Hover must not move focus away from them.
     static let defaultPinnedApps: Set<String> = [
         "com.apple.SecurityAgent",
         "com.apple.LocalAuthentication.UIAgent",

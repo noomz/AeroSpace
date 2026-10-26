@@ -54,7 +54,8 @@ import AppKit
             // Hidden workspaces park their windows in a monitor corner, so they can still be hit-tested.
             // Checked after the awaits above, because a workspace switch may have happened meanwhile
             guard window.nodeWorkspace == location.monitorApproximation.activeWorkspace else { return }
-            // The hit-test awaits above can outlive the moment the prompt appears
+            // The hit-test awaits above can outlive the moment the prompt appears.
+            // focusWindow() is another await, so a prompt that appears inside that call is past this check
             if isFocusPinnedByFrontmostApp() { return }
             try await runLightSession(.focusFollowsMouse, token) {
                 _ = window.focusWindow()

@@ -3,7 +3,7 @@ private let focusFollowsMouseParserTable: [String: any ParserProtocol<FocusFollo
     "delay-ms": Parser(\.delayMs, parseNonNegativeInt),
     "edge-inset": Parser(\.edgeInset, parseNonNegativeInt),
     "floating-cover-percent": Parser(\.floatingCoverPercent, parsePercent),
-    "pinned-apps": Parser(\.pinnedApps, parsePinnedApps),
+    "pinned-apps": Parser(\.pinnedApps, parseSetOfStrings),
 ]
 
 private func parseNonNegativeInt(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<Int> {

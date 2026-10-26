@@ -413,12 +413,12 @@ private func parseArrayOfStrings(_ raw: OrderedJson, _ backtrace: ConfigBacktrac
         }
 }
 
-private func parseIgnoreFocusFrom(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<Set<String>> {
+func parseSetOfStrings(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<Set<String>> {
     parseArrayOfStrings(raw, backtrace).map { Set($0) }
 }
 
-func parsePinnedApps(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<Set<String>> {
-    parseArrayOfStrings(raw, backtrace).map { Set($0) }
+private func parseIgnoreFocusFrom(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<Set<String>> {
+    parseSetOfStrings(raw, backtrace)
 }
 
 private func parseDefaultContainerOrientation(_ raw: OrderedJson, _ backtrace: ConfigBacktrace) -> ResOrConfigParseDiagnostic<DefaultContainerOrientation> {
