@@ -4,7 +4,7 @@
 @discardableResult
 func ignoreFocusFromAppIfNeeded(bundleId: String?) -> Bool {
     guard let bundleId, config.ignoreFocusFrom.contains(bundleId) else { return false }
-    guard let restoreWindow = focus.windowOrNil else { return true }
+    guard let restoreWindow = globalFocus.windowOrNil else { return true }
     guard restoreWindow.app.rawAppBundleId != bundleId else { return true }
     guard restoreWindow.app.rawAppBundleId.map({ !config.ignoreFocusFrom.contains($0) }) ?? true else { return true }
     restoreWindow.nativeFocus()

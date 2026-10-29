@@ -85,13 +85,13 @@ struct FocusCommand: Command {
                 case .wrapAroundAllMonitors: .fail(io.err("Must be discarded by args parser"))
             }
         case .allMonitorsOuterFrame:
-            let currentMonitor = target.workspace.workspaceMonitor
+            let currentMonitor = target.workspace.workspaceMonitorInfo
             guard let (monitors, index) = currentMonitor.findRelativeMonitor(inDirection: direction) else {
                 return .fail(io.err(bugPrompt("Should never happen. Can't find the current monitor")))
             }
 
             if let targetMonitor = monitors.getOrNil(atIndex: index) {
-                return .from(bool: targetMonitor.activeWorkspace.focusWorkspace())
+                return .from(bool: targetMonitor.visibleWorkspace.focusWorkspace())
             } else {
                 guard let wrapped = monitors.get(wrappingIndex: index) else { return .fail(io.err(bugPrompt("\(index) \(monitors)"))) }
                 return hitAllMonitorsOuterFrameBoundaries(target, io, args, direction, wrapped)
@@ -114,8 +114,8 @@ struct FocusCommand: Command {
         case .wrapAroundTheWorkspace:
             return wrapAroundTheWorkspace(target, io, direction)
         case .wrapAroundAllMonitors:
-            wrappedMonitor.activeWorkspace.findLeafWindowRecursive(snappedTo: direction.opposite)?.markAsMostRecentChild()
-            return .from(bool: wrappedMonitor.activeWorkspace.focusWorkspace())
+            wrappedMonitor.visibleWorkspace.findLeafWindowRecursive(snappedTo: direction.opposite)?.markAsMostRecentChild()
+            return .from(bool: wrappedMonitor.visibleWorkspace.focusWorkspace())
     }
 }
 
@@ -138,7 +138,7 @@ struct FocusCommand: Command {
 
         let tilingParent: TilingContainer
         let index: Int
-        if let target = center.coerce(in: workspace.workspaceMonitor.visibleRectPaddedByOuterGaps)?
+        if let target = center.coerce(in: workspace.workspaceMonitorInfo.visibleRectPaddedByOuterGaps)?
             .findWindowRecursively(in: workspace.rootTilingContainer, virtual: true)
         {
             guard let targetCenter = try? await target.getCenter(.nonCancellable) else { continue }
@@ -213,6 +213,7 @@ extension TreeNode {
                 }
             case .macosMinimizedWindowsContainer, .macosFullscreenWindowsContainer,
                  .macosPopupWindowsContainer, .macosHiddenAppsWindowsContainer,
+                 .monitor, .workspacesContainer,
                  .floatingWindowsContainer:
                 die("Impossible")
         }

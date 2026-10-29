@@ -84,7 +84,7 @@ final class ClosedWindowsCacheTest: XCTestCase {
 
     func testRestoreWindowSavedAfterMissingSibling() async throws {
         let workspaceA = Workspace.get(byName: "a")
-        let workspaceB = focus.workspace
+        let workspaceB = globalFocus.workspace
         let window1 = TestWindow.new(id: 1, parent: workspaceA.rootTilingContainer)
         let window2 = TestWindow.new(id: 2, parent: workspaceA.rootTilingContainer)
 
@@ -108,7 +108,7 @@ final class ClosedWindowsCacheTest: XCTestCase {
 
     func testRestoreWindowInNestedContainerWithMissingSibling() async throws {
         let workspaceA = Workspace.get(byName: "a")
-        let workspaceB = focus.workspace
+        let workspaceB = globalFocus.workspace
         let window1 = TestWindow.new(id: 1, parent: workspaceA.rootTilingContainer)
         let nested = TilingContainer.newVTiles(
             parent: workspaceA.rootTilingContainer,
@@ -148,7 +148,7 @@ final class ClosedWindowsCacheTest: XCTestCase {
 
     func testEmptyNestedContainerOfMissingWindowsIsNormalizedAway() async throws {
         let workspaceA = Workspace.get(byName: "a")
-        let workspaceB = focus.workspace
+        let workspaceB = globalFocus.workspace
         let nested = TilingContainer.newVTiles(
             parent: workspaceA.rootTilingContainer,
             adaptiveWeight: 1,
@@ -172,7 +172,7 @@ final class ClosedWindowsCacheTest: XCTestCase {
 
     func testRestoreFloatingWindowWhileTiledSiblingIsMissing() async throws {
         let workspaceA = Workspace.get(byName: "a")
-        let workspaceB = focus.workspace
+        let workspaceB = globalFocus.workspace
         let window1 = TestWindow.new(id: 1, parent: workspaceA.rootTilingContainer)
         let window2 = TestWindow.new(id: 2, parent: workspaceA.floatingWindowsContainer)
 

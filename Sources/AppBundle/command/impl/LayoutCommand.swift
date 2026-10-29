@@ -30,7 +30,7 @@ struct LayoutCommand: Command {
                         let msg = "Can't change layout for macOS minimized, fullscreen windows or windows or hidden apps. " +
                             "This behavior is subject to change"
                         return .fail(io.err(msg))
-                    case .unbound, .macosPopupWindowsContainer:
+                    case nil, .macosPopupWindowsContainer:
                         return .fail(io.err(bugPrompt()))
                 }
             case nil:
@@ -109,6 +109,8 @@ struct LayoutCommand: Command {
                     case .floatingWindowsContainer:
                         window.isSticky.toggle()
                         return .succ
+                    case .monitor, .workspacesContainer: // Invalid parents for windows
+                        return .fail
                 }
         }
     }

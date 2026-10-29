@@ -21,20 +21,20 @@ import AppKit
     focusFollowsMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { @MainActor event in
         let location = event.locationInWindow.withYAxisFlipped
         focusFollowsTask?.cancel()
+        guard let token: RunSessionGuard = .isServerEnabled else { return }
         focusFollowsTask = Task.startUnstructured { @MainActor in
             // The next mouse move cancels this task, so focus only moves once the mouse rests for delayMs.
             // A focus change made meanwhile (a keyboard command, a click) wins over the mouse
             let delayMs = config.focusFollowsMouse.delayMs
             if delayMs > 0 {
-                let focusedBefore = focus.windowOrNil
+                let focusedBefore = globalFocus.windowOrNil
                 try await Task.sleep(for: .milliseconds(delayMs))
-                if focus.windowOrNil != focusedBefore { return }
+                if globalFocus.windowOrNil != focusedBefore { return }
             }
             // Password and Touch ID prompts are accessory agents. They are frontmost, and they are not managed
-            // windows, so focus.windowOrNil still points at the tile underneath. Read frontmost after the delay:
+            // windows, so globalFocus.windowOrNil still points at the tile underneath. Read frontmost after the delay:
             // the prompt can appear while the mouse is resting.
             if isFocusPinnedByFrontmostApp() { return }
-            guard let token: RunSessionGuard = .isServerEnabled else { return }
             try checkCancellation()
             // Hit-test, so the window macOS draws on top wins, regardless of floating/tiling/sticky.
             // Menubar dropdowns and menu-like fake windows resolve to no managed window and are ignored.
@@ -44,7 +44,7 @@ import AppKit
             try checkCancellation()
             guard let window = axWindowId.flatMap(Window.get(byId:)) ?? cgWindowIdUnderMouse(location).flatMap(Window.get(byId:))
             else { return }
-            if let focused = focus.windowOrNil, focused != window, focused.nodeWorkspace == window.nodeWorkspace,
+            if let focused = globalFocus.windowOrNil, focused != window, focused.nodeWorkspace == window.nodeWorkspace,
                try await isCoveringFloatingWindow(focused, location, percent: config.focusFollowsMouse.floatingCoverPercent)
             {
                 return
@@ -53,7 +53,7 @@ import AppKit
             try checkCancellation()
             // Hidden workspaces park their windows in a monitor corner, so they can still be hit-tested.
             // Checked after the awaits above, because a workspace switch may have happened meanwhile
-            guard window.nodeWorkspace == location.monitorApproximation.activeWorkspace else { return }
+            guard window.nodeWorkspace == location.monitorApproximation.visibleWorkspace else { return }
             // The hit-test awaits above can outlive the moment the prompt appears.
             // focusWindow() is another await, so a prompt that appears inside that call is past this check
             if isFocusPinnedByFrontmostApp() { return }
@@ -113,7 +113,7 @@ private func isPastEdgeInset(_ window: Window, _ point: CGPoint, inset: Int) asy
 
 @MainActor
 private func isCoveringFloatingWindow(_ window: Window, _ point: CGPoint, percent: Int) async throws -> Bool {
-    guard percent > 0, window.isFloating, let monitor = window.nodeMonitor else { return false }
+    guard percent > 0, window.isFloating, let monitor = window.nodeMonitorInfo else { return false }
     // Inside its frame, the mouse is over a window drawn on top of it (a dialog, a palette), which may take focus
     guard let rect = try await window.getAxRect(.cancellable), !rect.contains(point) else { return false }
     // Only the part of the window that lies on its monitor counts
