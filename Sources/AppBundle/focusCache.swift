@@ -1,4 +1,6 @@
-@MainActor private var lastKnownNativeFocusedWindowId: UInt32? = nil
+import Common
+
+@MainActor private var lastKnownNativeFocusedWindowId: OpaqueWindowId? = nil
 
 @MainActor
 @discardableResult
@@ -25,5 +27,5 @@ func ignoreFocusFromAppIfNeeded(bundleId: String?) -> Bool {
         _ = nativeFocused?.focusWindow()
         lastKnownNativeFocusedWindowId = nativeFocused?.windowId
     }
-    (nativeFocused?.app as? MacApp)?.lastNativeFocusedWindowId = nativeFocused?.windowId
+    (nativeFocused?.app as? MacApp)?.lastFocusedNativeWindowOpaqueId = nativeFocused?.windowId
 }

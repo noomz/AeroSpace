@@ -1,4 +1,5 @@
 import AppKit
+import Common
 
 @MainActor private var focusFollowsMouseMonitor: Any? = nil
 @MainActor private var focusFollowsTask: Task<(), any Error>? = nil
@@ -40,9 +41,9 @@ import AppKit
             // Menubar dropdowns and menu-like fake windows resolve to no managed window and are ignored.
             // Accessibility goes first, because it skips click-through overlays. When it doesn't resolve to a managed
             // window (it fails on some web content in WKWebView-based apps), the window server's z-order is the fallback
-            let axWindowId = await axWindowIdUnderMouse(location)
+            let axHit = await axWindowUnderMouse(location)
             try checkCancellation()
-            guard let window = axWindowId.flatMap(Window.get(byId:)) ?? cgWindowIdUnderMouse(location).flatMap(Window.get(byId:))
+            guard let window = axHit.flatMap(Window.get(byNativeHit:)) ?? cgWindowUnderMouse(location).flatMap(Window.get(byNativeHit:))
             else { return }
             if let focused = globalFocus.windowOrNil, focused != window, focused.nodeWorkspace == window.nodeWorkspace,
                try await isCoveringFloatingWindow(focused, location, percent: config.focusFollowsMouse.floatingCoverPercent)
@@ -65,6 +66,18 @@ import AppKit
     }
 }
 
+/// Native window ids are mapped to `OpaqueWindowId` per app, so the hit-test reports the owning pid too
+private struct NativeWindowHit: Sendable {
+    let nativeWindowId: CGWindowID
+    let pid: pid_t
+}
+
+extension Window {
+    @MainActor fileprivate static func get(byNativeHit hit: NativeWindowHit) -> Window? {
+        get(byNativeId: hit.nativeWindowId, pid: hit.pid)
+    }
+}
+
 @MainActor
 private func isFocusPinnedByFrontmostApp() -> Bool {
     guard let bundleId = NSWorkspace.shared.frontmostApplication?.bundleIdentifier else { return false }
@@ -72,7 +85,7 @@ private func isFocusPinnedByFrontmostApp() -> Bool {
 }
 
 @concurrent
-private nonisolated func axWindowIdUnderMouse(_ location: CGPoint) async -> CGWindowID? {
+private nonisolated func axWindowUnderMouse(_ location: CGPoint) async -> NativeWindowHit? {
     let systemwide = AXUIElementCreateSystemWide()
     var element: AXUIElement?
     if unsafe AXUIElementCopyElementAtPosition(systemwide, Float(location.x), Float(location.y), &element) != .success {
@@ -80,11 +93,13 @@ private nonisolated func axWindowIdUnderMouse(_ location: CGPoint) async -> CGWi
     }
     guard let element else { return nil }
     // Some elements (Electron, Qt, web content) lack kAXWindowAttribute; the private API resolves them directly
-    return (element.get(Ax.parentWindowRecursive) ?? element).containingWindowId()
+    let window = element.get(Ax.parentWindowRecursive) ?? element
+    guard let nativeWindowId = window.containingNativeWindowId(), let pid = window.pid else { return nil }
+    return NativeWindowHit(nativeWindowId: nativeWindowId, pid: pid)
 }
 
 /// The frontmost on-screen window containing the location, in window server z-order
-private func cgWindowIdUnderMouse(_ location: CGPoint) -> CGWindowID? {
+private func cgWindowUnderMouse(_ location: CGPoint) -> NativeWindowHit? {
     let state = signposter.beginInterval(#function)
     defer { signposter.endInterval(#function, state) }
     let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
@@ -95,7 +110,10 @@ private func cgWindowIdUnderMouse(_ location: CGPoint) -> CGWindowID? {
               bounds.contains(location),
               (window[kCGWindowAlpha as String] as? Double ?? 1) > 0 // Fully transparent windows aren't seen
         else { continue }
-        return window[kCGWindowNumber as String] as? CGWindowID
+        guard let nativeWindowId = window[kCGWindowNumber as String] as? CGWindowID,
+              let pid = window[kCGWindowOwnerPID as String] as? pid_t
+        else { return nil }
+        return NativeWindowHit(nativeWindowId: nativeWindowId, pid: pid)
     }
     return nil
 }

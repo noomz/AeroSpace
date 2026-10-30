@@ -37,7 +37,7 @@ final class PrivateSpace {
         if windows.isEmpty { return true }
         let state = signposter.beginInterval(#function, "windows: \(windows.count)")
         defer { signposter.endInterval(#function, state) }
-        let windowIds = windows.map(\.windowId)
+        let windowIds = windows.compactMap(\.nativeWindowId)
         var updated = journal
         updated.windowIds.formUnion(windowIds)
         guard updated.write() else { return false }

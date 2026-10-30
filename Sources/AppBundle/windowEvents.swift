@@ -7,7 +7,7 @@ struct WindowSnapshotEntry: Equatable {
     let appName: String?
 }
 
-typealias WindowSnapshot = [UInt32: WindowSnapshotEntry]
+typealias WindowSnapshot = [OpaqueWindowId: WindowSnapshotEntry]
 
 /// Diffs two window snapshots into `window-moved` and `window-closed` events and returns the snapshot to keep.
 ///
@@ -25,18 +25,18 @@ func diffWindowSnapshots(
     old: WindowSnapshot,
     new: WindowSnapshot,
     isLocked: Bool,
-    sticky: Set<UInt32>,
+    sticky: Set<OpaqueWindowId>,
     isFirstDiff: Bool,
 ) -> (events: [ServerEvent], snapshot: WindowSnapshot) {
     if isFirstDiff { return ([], new) }
     if isLocked { return ([], old) }
     var closed: [ServerEvent] = []
     var moved: [ServerEvent] = []
-    for (id, was) in old.sorted(by: { $0.key < $1.key }) {
+    for (id, was) in old.sorted(by: { $0.key.rawId < $1.key.rawId }) {
         if let now = new[id], now.appBundleId == was.appBundleId { continue }
         closed.append(.windowClosed(windowId: id, workspace: was.workspace, appBundleId: was.appBundleId))
     }
-    for (id, now) in new.sorted(by: { $0.key < $1.key }) where !sticky.contains(id) {
+    for (id, now) in new.sorted(by: { $0.key.rawId < $1.key.rawId }) where !sticky.contains(id) {
         let was = old[id].flatMap { $0.appBundleId == now.appBundleId ? $0 : nil }
         if was?.workspace == now.workspace { continue }
         moved.append(.windowMoved(
@@ -75,7 +75,7 @@ func windowDiffFreeze(isLocked: Bool, unlockPending: Bool, endOfHeavySession: Bo
     unlockPending = freeze.unlockPending
     if windowSnapshot == nil && (!endOfHeavySession || freeze.frozen) { return }
     var new: WindowSnapshot = [:]
-    var sticky: Set<UInt32> = []
+    var sticky: Set<OpaqueWindowId> = []
     for window in MacWindow.allWindows {
         if window.isSticky { sticky.insert(window.windowId) }
         if let workspace = window.nodeWorkspace?.name {

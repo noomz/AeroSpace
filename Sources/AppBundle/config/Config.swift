@@ -32,7 +32,7 @@ var defaultConfigUrl: URL {
 @MainActor var config: Config = defaultConfig // todo move to Ctx?
 @MainActor var configUrl: URL = defaultConfigUrl
 
-struct Config: ConvenienceMutable {
+struct Config: Withable {
     var configVersion: ConfigVersion = ._1
     var _afterLoginCommand: [any Command] = []
     var afterStartupCommand: Shell<any Command> = .empty
@@ -65,7 +65,7 @@ struct Config: ConvenienceMutable {
     var onModeChanged: Shell<any Command> = .empty
 }
 
-struct FocusFollowsMouse: ConvenienceMutable {
+struct FocusFollowsMouse: Withable {
     /// Password, biometric, and lock-screen prompts. They are accessory agents, not managed windows, and they
     /// are frontmost while the prompt is up. Hover must not move focus away from them.
     static let defaultPinnedApps: Set<String> = [

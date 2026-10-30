@@ -111,13 +111,8 @@ enum RunSessionGuard: Sendable {
         command is EnableCommand ? .forceRun : .isServerEnabled
     }
     @MainActor
-    static func checkServerIsEnabledOrDie(
-        file: StaticString = #fileID,
-        line: Int = #line,
-        column: Int = #column,
-        function: String = #function,
-    ) -> Self {
-        .isServerEnabled ?? dieT("server is disabled", file: file, line: line, column: column, function: function)
+    static func checkServerIsEnabledOrDie(fileId: MyFileId = #myFileId) -> Self {
+        .isServerEnabled ?? dieT("server is disabled", fileId: fileId)
     }
 }
 
@@ -138,17 +133,19 @@ func refreshModel_nonCancellable() async {
 @MainActor
 private func refresh() async throws {
     // Garbage collect terminated apps and windows before working with all windows
-    let mapping = try await MacApp.refreshAllAndGetAliveWindowIds(frontmostAppBundleId: NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
-    let aliveWindowIds = mapping.values.flatMap(id).toSet()
+    let mapping = try await MacApp
+        .refreshAllAndGetAliveWindowIds(frontmostAppBundleId: NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
+    let aliveWindowIds = mapping.values.flatMap(\.keys).toSet()
 
     for window in MacWindow.allWindows {
         if !aliveWindowIds.contains(window.windowId) {
+            window.lifeStatus = .dead
             window.garbageCollect(skipClosedWindowsCache: false)
         }
     }
-    for (app, windowIds) in mapping {
-        for windowId in windowIds {
-            try await MacWindow.getOrRegister(windowId: windowId, macApp: app)
+    for (app, windows) in mapping {
+        for (windowId, lifeStatus) in windows {
+            try await MacWindow.getOrRegister(windowId: windowId, macApp: app).lifeStatus = lifeStatus
         }
     }
 
@@ -236,7 +233,7 @@ private func layoutWorkspaces() async throws {
 
 @MainActor
 private func unhide(_ windows: [MacWindow], monitor: MonitorInfo) async throws {
-    PrivateSpace.current?.unstash(windows.filter(\.isHiddenInPrivateSpace).map(\.windowId), toDisplayAt: monitor.rect.center)
+    PrivateSpace.current?.unstash(windows.filter(\.isHiddenInPrivateSpace).compactMap(\.nativeWindowId), toDisplayAt: monitor.rect.center)
     for window in windows {
         try await window.unhide()
     }

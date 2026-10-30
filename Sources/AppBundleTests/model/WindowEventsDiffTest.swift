@@ -9,7 +9,7 @@ final class WindowEventsDiffTest: XCTestCase {
         _ old: WindowSnapshot,
         _ new: WindowSnapshot,
         isLocked: Bool = false,
-        sticky: Set<UInt32> = [],
+        sticky: Set<OpaqueWindowId> = [],
         isFirstDiff: Bool = false,
     ) -> (events: [ServerEvent], snapshot: WindowSnapshot) {
         diffWindowSnapshots(old: old, new: new, isLocked: isLocked, sticky: sticky, isFirstDiff: isFirstDiff)

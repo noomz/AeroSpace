@@ -79,7 +79,7 @@ struct FrozenWorkspace: Sendable {
     let monitors = globalUnsortedMonitorInfos
     let topLeftCornerToMonitorInfo = monitors.grouped { $0.rect.topLeftCorner }
     // Resolve the windows before the restore detaches any tree
-    let windows: [UInt32: Window] = closedWindowsCache.windowIds.reduce(into: [:]) { $0[$1] = MacWindow.get(byId: $1) }
+    let windows: [OpaqueWindowId: Window] = closedWindowsCache.windowIds.reduce(into: [:]) { $0[$1] = MacWindow.get(byId: $1) }
 
     for monitor in closedWindowsCache.monitors {
         for frozenWorkspace in monitor.workspaces {
@@ -117,7 +117,7 @@ private func restoreTreeRecursive(
     _ frozenContainer: FrozenContainer,
     parent: NonLeafTreeNodeObject,
     index: Int,
-    _ windows: [UInt32: Window],
+    _ windows: [OpaqueWindowId: Window],
 ) {
     let container = TilingContainer(
         parent: parent,
