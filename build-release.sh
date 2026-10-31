@@ -65,6 +65,8 @@ expected_layout=$(cat <<EOF
 .release/AeroSpace.app/Contents/Resources/default-config.toml
 .release/AeroSpace.app/Contents/Resources/AppIcon.icns
 .release/AeroSpace.app/Contents/Resources/Assets.car
+.release/AeroSpace.app/Contents/Frameworks
+.release/AeroSpace.app/Contents/Frameworks/libswiftCompatibilitySpan.dylib
 .release/AeroSpace.app/Contents/Info.plist
 .release/AeroSpace.app/Contents/PkgInfo
 EOF
