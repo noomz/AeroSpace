@@ -1,5 +1,4 @@
 // swift-tools-version: 6.2
-// The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import CompilerPluginSupport
 import PackageDescription
@@ -25,7 +24,7 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/InerziaSoft/ISSoundAdditions.git", exact: "2.0.1"),
         .package(url: "https://github.com/dduan/TOMLDecoder", exact: "0.4.5"),
-        .package(url: "https://github.com/apple/swift-collections.git", exact: "1.3.0"),
+        .package(url: "https://github.com/apple/swift-collections.git", exact: "1.7.5", traits: ["UnstableHashedContainers"]),
         .package(url: "https://github.com/soffes/HotKey.git", exact: "0.2.1"),
         .package(url: "https://github.com/swiftlang/swift-syntax.git", exact: "604.0.0"),
     ],
@@ -56,6 +55,7 @@ let package = Package(
         .target(
             name: "AppBundle",
             dependencies: [
+                .product(name: "BasicContainers", package: "swift-collections"),
                 .product(name: "Collections", package: "swift-collections"),
                 .product(name: "HotKey", package: "HotKey"),
                 .product(name: "ISSoundAdditions", package: "ISSoundAdditions"),
