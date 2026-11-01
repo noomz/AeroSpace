@@ -93,6 +93,15 @@ check-contains-hash() {
     fi
 }
 
+check-no-rpath-dylibs() {
+    if otool -L "$1" | grep --fixed-string '@rpath/'; then
+        echo "$1 links @rpath dylibs that aren't shipped next to it"
+        exit 1
+    fi
+}
+
+check-no-rpath-dylibs .release/aerospace
+
 check-universal-binary .release/AeroSpace.app/Contents/MacOS/AeroSpace
 check-universal-binary .release/aerospace
 
