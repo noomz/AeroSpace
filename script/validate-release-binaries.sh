@@ -93,6 +93,7 @@ expected_app_dylibs=$(cat <<EOF
 	/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit
 	/System/Library/Frameworks/ApplicationServices.framework/Versions/A/ApplicationServices
 	/System/Library/Frameworks/Carbon.framework/Versions/A/Carbon
+	/System/Library/Frameworks/ColorSync.framework/Versions/A/ColorSync
 	/System/Library/Frameworks/Combine.framework/Versions/A/Combine
 	/System/Library/Frameworks/CoreAudio.framework/Versions/A/CoreAudio
 	/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation
