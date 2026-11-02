@@ -44,6 +44,13 @@ git checkout .
 cp -r "xcode/.xcode-build/Build/Products/$xcode_configuration/AeroSpace.app" .release
 cp -r "$cli_bin_path/aerospace" .release
 
+# Binary reproducibility: strip non-portable rpaths
+# https://github.com/swiftlang/swift-package-manager/issues/10760
+xcrun objdump --macho --rpaths --no-leading-headers --arch all .release/aerospace | grep -vE '^(@|/usr/lib/swift$)' | sort -u |
+    while IFS= read -r rpath; do
+        install_name_tool -delete_rpath "$rpath" .release/aerospace
+    done
+
 ################
 ### SIGN CLI ###
 ################
@@ -54,62 +61,7 @@ codesign -s "$codesign_identity" .release/aerospace
 ### VALIDATE ###
 ################
 
-expected_layout=$(cat <<EOF
-.release/AeroSpace.app
-.release/AeroSpace.app/Contents
-.release/AeroSpace.app/Contents/_CodeSignature
-.release/AeroSpace.app/Contents/_CodeSignature/CodeResources
-.release/AeroSpace.app/Contents/MacOS
-.release/AeroSpace.app/Contents/MacOS/AeroSpace
-.release/AeroSpace.app/Contents/Resources
-.release/AeroSpace.app/Contents/Resources/default-config.toml
-.release/AeroSpace.app/Contents/Resources/AppIcon.icns
-.release/AeroSpace.app/Contents/Resources/Assets.car
-.release/AeroSpace.app/Contents/Frameworks
-.release/AeroSpace.app/Contents/Frameworks/libswiftCompatibilitySpan.dylib
-.release/AeroSpace.app/Contents/Info.plist
-.release/AeroSpace.app/Contents/PkgInfo
-EOF
-)
-
-if test "$expected_layout" != "$(find .release/AeroSpace.app)"; then
-    echo "!!! Expect/Actual layout don't match !!!"
-    find .release/AeroSpace.app
-    exit 1
-fi
-
-check-universal-binary() {
-    if ! file "$1" | grep --fixed-string -q "Mach-O universal binary with 2 architectures: [x86_64:Mach-O 64-bit executable x86_64] [arm64"; then
-        echo "$1 is not a universal binary"
-        exit 1
-    fi
-}
-
-check-contains-hash() {
-    hash=$(git rev-parse HEAD)
-    if ! strings "$1" | grep --fixed-string "$hash" > /dev/null; then
-        echo "$1 doesn't contain $hash"
-        exit 1
-    fi
-}
-
-check-no-rpath-dylibs() {
-    if otool -L "$1" | grep --fixed-string '@rpath/'; then
-        echo "$1 links @rpath dylibs that aren't shipped next to it"
-        exit 1
-    fi
-}
-
-check-no-rpath-dylibs .release/aerospace
-
-check-universal-binary .release/AeroSpace.app/Contents/MacOS/AeroSpace
-check-universal-binary .release/aerospace
-
-check-contains-hash .release/AeroSpace.app/Contents/MacOS/AeroSpace
-check-contains-hash .release/aerospace
-
-codesign -v .release/AeroSpace.app
-codesign -v .release/aerospace
+./script/validate-release-binaries.sh
 
 ############
 ### PACK ###
