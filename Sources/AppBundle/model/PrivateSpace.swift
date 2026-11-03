@@ -172,7 +172,9 @@ private func windowCenter(_ windowId: UInt32) -> CGPoint? {
     private typealias InitWithSpaceIdWindowsOptions =
         @convention(c) (AnyObject, Selector, UInt64, NSArray, UInt32) -> Unmanaged<AnyObject>?
 
-    private static let addToSpaceAndRemoveFromOthers: UInt32 = 7
+    // Without 0x8, macOS 27.2 keeps a window that has been in the private Space tied to it after it moves back.
+    // The next context menu of its app pulls the window, and the menu, back into the private Space, out of sight
+    private static let addToSpaceAndRemoveFromOthers: UInt32 = 7 | 0x8
 
     private let connection: Int32
     private let copyManagedDisplaySpaces: @convention(c) (Int32) -> Unmanaged<CFArray>?
