@@ -216,7 +216,11 @@ private func layoutWorkspaces() async throws {
 
 @MainActor
 private func unhide(_ windows: [MacWindow], monitor: MonitorInfo) async throws {
-    PrivateSpace.current?.unstash(windows.filter(\.isHiddenInPrivateSpace).map(\.windowId), toDisplayAt: monitor.rect.center)
+    if let privateSpace = PrivateSpace.current {
+        let hidden = windows.filter(\.isHiddenInPrivateSpace).map(\.windowId)
+        let shown = windows.filter { !$0.isHiddenInPrivateSpace && $0.canHideInPrivateSpace }.map(\.windowId)
+        privateSpace.unstash(hidden + privateSpace.stranded(shown), toDisplayAt: monitor.rect.center)
+    }
     for window in windows {
         try await window.unhide()
     }
