@@ -47,6 +47,16 @@ final class PrivateSpace {
         return true
     }
 
+    /// The windows the window server keeps in the private Space although AeroSpace shows them.
+    /// macOS 27.2 pulled windows back in after they had left it, and nothing else would bring them out.
+    /// Even AeroSpace's own connection can't see the private Space, so such a window reports no user Space
+    func stranded(_ windowIds: [UInt32]) -> [UInt32] {
+        guard let skyLight, !windowIds.isEmpty else { return [] }
+        let userSpaceIds = skyLight.userVisibleSpaceIds()
+        if userSpaceIds.isEmpty { return [] }
+        return windowIds.filter { skyLight.spaceIds(ofWindow: $0).isDisjoint(with: userSpaceIds) }
+    }
+
     func unstash(_ windowIds: [UInt32], toDisplayAt point: CGPoint) {
         guard let skyLight, !windowIds.isEmpty else { return }
         let state = signposter.beginInterval(#function, "windows: \(windowIds.count)")
