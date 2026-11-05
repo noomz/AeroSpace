@@ -1,16 +1,18 @@
 @testable import AppBundle
-import XCTest
+import Common
+import Testing
 
 @MainActor
-final class ClosedWindowsCacheTest: XCTestCase {
-    override func setUp() async throws {
+@Suite(.serializedGlobally)
+struct ClosedWindowsCacheTest {
+    init() {
         setUpWorkspacesForTests()
         resetClosedWindowsCache()
         onScreenUnlocked()
     }
 
     // https://github.com/nikitabobko/AeroSpace/issues/2234
-    func testDontRestoreCacheIfScreenWasNeverLocked() async throws {
+    @Test func testDontRestoreCacheIfScreenWasNeverLocked() async throws {
         let workspace = Workspace.get(byName: name)
         let window = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
         cacheClosedWindowIfNeeded() // The window is about to die
@@ -19,10 +21,10 @@ final class ClosedWindowsCacheTest: XCTestCase {
         // macOS reuses window IDs. A brand new window may get the ID of a previously closed window
         let newWindow = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
         let restored = try await restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: newWindow)
-        XCTAssertFalse(restored)
+        assertFalse(restored)
     }
 
-    func testRestoreCacheIfScreenWasLockedAfterCaching() async throws {
+    @Test func testRestoreCacheIfScreenWasLockedAfterCaching() async throws {
         let workspace = Workspace.get(byName: name)
         let window = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
         cacheClosedWindowIfNeeded()
@@ -33,10 +35,10 @@ final class ClosedWindowsCacheTest: XCTestCase {
 
         let reappeared = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
         let restored = try await restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: reappeared)
-        XCTAssertTrue(restored)
+        assertTrue(restored)
     }
 
-    func testRestoreCacheIfCachedWhileScreenIsLocked() async throws {
+    @Test func testRestoreCacheIfCachedWhileScreenIsLocked() async throws {
         let workspace = Workspace.get(byName: name)
         let window = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
 
@@ -47,10 +49,10 @@ final class ClosedWindowsCacheTest: XCTestCase {
 
         let reappeared = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
         let restored = try await restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: reappeared)
-        XCTAssertTrue(restored)
+        assertTrue(restored)
     }
 
-    func testDontRestoreCacheCapturedAfterUnlock() async throws {
+    @Test func testDontRestoreCacheCapturedAfterUnlock() async throws {
         let workspace = Workspace.get(byName: name)
         onScreenLocked()
         onScreenUnlocked()
@@ -61,10 +63,10 @@ final class ClosedWindowsCacheTest: XCTestCase {
 
         let newWindow = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
         let restored = try await restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: newWindow)
-        XCTAssertFalse(restored)
+        assertFalse(restored)
     }
 
-    func testResetCacheForgetsScreenLock() async throws {
+    @Test func testResetCacheForgetsScreenLock() async throws {
         let workspace = Workspace.get(byName: name)
         let window = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
         cacheClosedWindowIfNeeded()
@@ -79,10 +81,10 @@ final class ClosedWindowsCacheTest: XCTestCase {
 
         let newWindow = TestWindow.new(id: 2, parent: workspace.rootTilingContainer)
         let restored = try await restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: newWindow)
-        XCTAssertFalse(restored)
+        assertFalse(restored)
     }
 
-    func testRestoreWindowSavedAfterMissingSibling() async throws {
+    @Test func testRestoreWindowSavedAfterMissingSibling() async throws {
         let workspaceA = Workspace.get(byName: "a")
         let workspaceB = globalFocus.workspace
         let window1 = TestWindow.new(id: 1, parent: workspaceA.rootTilingContainer)
@@ -106,7 +108,7 @@ final class ClosedWindowsCacheTest: XCTestCase {
         assertEquals(workspaceB.rootTilingContainer.layoutDescription, .h_tiles([]))
     }
 
-    func testRestoreWindowInNestedContainerWithMissingSibling() async throws {
+    @Test func testRestoreWindowInNestedContainerWithMissingSibling() async throws {
         let workspaceA = Workspace.get(byName: "a")
         let workspaceB = globalFocus.workspace
         let window1 = TestWindow.new(id: 1, parent: workspaceA.rootTilingContainer)
@@ -146,7 +148,7 @@ final class ClosedWindowsCacheTest: XCTestCase {
         assertEquals(workspaceB.rootTilingContainer.layoutDescription, .h_tiles([]))
     }
 
-    func testEmptyNestedContainerOfMissingWindowsIsNormalizedAway() async throws {
+    @Test func testEmptyNestedContainerOfMissingWindowsIsNormalizedAway() async throws {
         let workspaceA = Workspace.get(byName: "a")
         let workspaceB = globalFocus.workspace
         let nested = TilingContainer.newVTiles(
@@ -170,7 +172,7 @@ final class ClosedWindowsCacheTest: XCTestCase {
         assertEquals(workspaceA.rootTilingContainer.layoutDescription, .h_tiles([.window(2)]))
     }
 
-    func testRestoreFloatingWindowWhileTiledSiblingIsMissing() async throws {
+    @Test func testRestoreFloatingWindowWhileTiledSiblingIsMissing() async throws {
         let workspaceA = Workspace.get(byName: "a")
         let workspaceB = globalFocus.workspace
         let window1 = TestWindow.new(id: 1, parent: workspaceA.rootTilingContainer)
@@ -188,8 +190,8 @@ final class ClosedWindowsCacheTest: XCTestCase {
         assertEquals(workspaceB.rootTilingContainer.layoutDescription, .h_tiles([]))
     }
 
-    private func assertRestored(_ window: Window, file: StaticString = #filePath, line: UInt = #line) async throws {
+    private func assertRestored(_ window: Window, sourceLocation: SourceLocation = #_sourceLocation) async throws {
         let restored = try await restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: window)
-        XCTAssertTrue(restored, file: file, line: line)
+        assertTrue(restored, sourceLocation: sourceLocation)
     }
 }

@@ -1,14 +1,16 @@
 @testable import AppBundle
 import Common
-import XCTest
+import Testing
 
-final class ThreadGuardedValueTest: XCTestCase {
-    func testThreadGuardedIfAliveReturnsNilAfterDestroy() {
+@MainActor
+@Suite(.serializedGlobally)
+struct ThreadGuardedValueTest {
+    @Test func testThreadGuardedIfAliveReturnsNilAfterDestroy() {
         $axTaskLocalAppThreadToken.withValue(AxAppThreadToken(pid: 42, idForDebug: "test")) {
             let value = ThreadGuardedValue(1)
-            XCTAssertEqual(value.threadGuardedIfAlive, 1)
+            assertEquals(value.threadGuardedIfAlive, 1)
             value.destroy()
-            XCTAssertNil(value.threadGuardedIfAlive)
+            assertNil(value.threadGuardedIfAlive)
         }
     }
 }

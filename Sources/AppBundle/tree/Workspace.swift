@@ -64,16 +64,14 @@ final class Workspace: TreeNode, NonLeafTreeNodeObject, Hashable, Comparable {
             _ = get(byName: name) // Make sure that all persistent workspaces are "cached"
         }
         let focus = globalFocus
-        let (alive, dead) = workspaceNameToWorkspace.partition { (_, workspace: Workspace) in
-            config.persistentWorkspaces.contains(workspace.name) ||
-                !workspace.isEffectivelyEmpty ||
-                workspace.isVisible ||
-                workspace.name == focus.workspace.name
+        let garbage = workspaceNameToWorkspace.values.filter { workspace in
+            !config.persistentWorkspaces.contains(workspace.name) &&
+                workspace.isEffectivelyEmpty &&
+                !workspace.isVisible &&
+                workspace.name != focus.workspace.name
         }
-        workspaceNameToWorkspace = alive
-        // Workspaces live in the monitor tree. Detach the dead ones, or a later workspace with the same name would have
-        // a stale twin that WorkspacesContainer lookups by name (visible workspace, stub workspace) can pick up
-        for workspace in dead.values {
+        for workspace in garbage {
+            workspaceNameToWorkspace.removeValue(forKey: workspace.name)
             workspace.unbindFromParent()
         }
     }

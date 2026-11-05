@@ -178,6 +178,7 @@ public enum FormatVar: RawRepresentable, Equatable, CaseIterable, Sendable {
 
     public enum WindowFormatVar: String, Equatable, CaseIterable, Sendable {
         case windowId = "window-id"
+        case windowIdNative = "window-id-native"
         case windowIsFullscreen = "window-is-fullscreen"
         case windowIsSticky = "window-is-sticky"
         case windowTitle = "window-title"

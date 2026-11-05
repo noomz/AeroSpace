@@ -1,8 +1,10 @@
 @testable import AppBundle
 import Common
-import XCTest
+import Testing
 
-final class WindowEventsDiffTest: XCTestCase {
+@MainActor
+@Suite(.serializedGlobally)
+struct WindowEventsDiffTest {
     private let kitty = WindowSnapshotEntry(workspace: "T", appBundleId: "net.kovidgoyal.kitty", appName: "kitty")
 
     private func diff(
@@ -19,7 +21,7 @@ final class WindowEventsDiffTest: XCTestCase {
         WindowSnapshotEntry(workspace: workspace, appBundleId: e.appBundleId, appName: e.appName)
     }
 
-    func testFirstAppearanceHasNoPrevWorkspace() {
+    @Test func testFirstAppearanceHasNoPrevWorkspace() {
         let r = diff([:], [1: kitty])
         assertEquals(r.events, [
             .windowMoved(windowId: 1, workspace: "T", prevWorkspace: nil, appBundleId: "net.kovidgoyal.kitty", appName: "kitty"),
@@ -27,26 +29,26 @@ final class WindowEventsDiffTest: XCTestCase {
         assertEquals(r.snapshot, [1: kitty])
     }
 
-    func testMoveCarriesPrevWorkspace() {
+    @Test func testMoveCarriesPrevWorkspace() {
         let r = diff([1: on("1", kitty)], [1: kitty])
         assertEquals(r.events, [
             .windowMoved(windowId: 1, workspace: "T", prevWorkspace: "1", appBundleId: "net.kovidgoyal.kitty", appName: "kitty"),
         ])
     }
 
-    func testCloseCarriesTheLastWorkspace() {
+    @Test func testCloseCarriesTheLastWorkspace() {
         let r = diff([1: kitty], [:])
         assertEquals(r.events, [.windowClosed(windowId: 1, workspace: "T", appBundleId: "net.kovidgoyal.kitty")])
         assertEquals(r.snapshot, [:])
     }
 
-    func testWithinWorkspaceRebindIsSilent() {
+    @Test func testWithinWorkspaceRebindIsSilent() {
         // Same workspace in both snapshots, whatever happened to the tree in between
         let r = diff([1: kitty, 2: on("1", kitty)], [1: kitty, 2: on("1", kitty)])
         assertEquals(r.events, [])
     }
 
-    func testLockFreezesTheSnapshotSoUnlockEmitsNoBurst() {
+    @Test func testLockFreezesTheSnapshotSoUnlockEmitsNoBurst() {
         let before: WindowSnapshot = [1: kitty, 2: on("1", kitty)]
         let locked = diff(before, [:], isLocked: true) // every window looks closed behind the lock screen
         assertEquals(locked.events, [])
@@ -55,7 +57,7 @@ final class WindowEventsDiffTest: XCTestCase {
         assertEquals(unlocked.events, [])
     }
 
-    func testFreezeLastsFromLockUntilTheFirstHeavySessionAfterUnlock() {
+    @Test func testFreezeLastsFromLockUntilTheFirstHeavySessionAfterUnlock() {
         let locked = windowDiffFreeze(isLocked: true, unlockPending: false, endOfHeavySession: false)
         assertEquals(locked.frozen, true)
         let light = windowDiffFreeze(isLocked: false, unlockPending: locked.unlockPending, endOfHeavySession: false)
@@ -67,7 +69,7 @@ final class WindowEventsDiffTest: XCTestCase {
         assertEquals(normal.frozen, false)
     }
 
-    func testNoBurstWhileWindowsAreStillGoneAfterUnlock() {
+    @Test func testNoBurstWhileWindowsAreStillGoneAfterUnlock() {
         let before: WindowSnapshot = [1: kitty, 2: on("1", kitty)]
         var pending = false
         var snapshot = before
@@ -82,7 +84,7 @@ final class WindowEventsDiffTest: XCTestCase {
         assertEquals(snapshot, before)
     }
 
-    func testStickyNeverMovesButStillCloses() {
+    @Test func testStickyNeverMovesButStillCloses() {
         let bitwarden = WindowSnapshotEntry(workspace: "1", appBundleId: "com.bitwarden.desktop", appName: "Bitwarden")
         let moved = diff([7: bitwarden], [7: on("2", bitwarden)], sticky: [7])
         assertEquals(moved.events, [])
@@ -93,13 +95,13 @@ final class WindowEventsDiffTest: XCTestCase {
         ])
     }
 
-    func testStartupSeedsSilently() {
+    @Test func testStartupSeedsSilently() {
         let r = diff([:], [1: kitty, 2: on("1", kitty)], isFirstDiff: true)
         assertEquals(r.events, [])
         assertEquals(r.snapshot, [1: kitty, 2: on("1", kitty)])
     }
 
-    func testRecycledWindowIdIsACloseAndAFirstAppearance() {
+    @Test func testRecycledWindowIdIsACloseAndAFirstAppearance() {
         let safari = WindowSnapshotEntry(workspace: "T", appBundleId: "com.apple.Safari", appName: "Safari")
         let r = diff([1: kitty], [1: safari])
         assertEquals(r.events, [
@@ -108,7 +110,7 @@ final class WindowEventsDiffTest: XCTestCase {
         ])
     }
 
-    func testEventsAreOrderedClosedFirstThenById() {
+    @Test func testEventsAreOrderedClosedFirstThenById() {
         let r = diff([3: kitty, 1: on("1", kitty)], [2: kitty, 1: kitty])
         assertEquals(r.events.map(\.eventType), [.windowClosed, .windowMoved, .windowMoved])
     }
