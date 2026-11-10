@@ -74,6 +74,11 @@ struct SafeAreaTest {
         assertEquals(window.movedToMonitor(from: left, to: main, wall: main), Rect(topLeftX: 1280, topLeftY: 720, width: 400, height: 300))
     }
 
+    @Test func testFloatingFullscreenWithoutOuterGapsFillsTheWall() {
+        let visible = Rect(topLeftX: 0, topLeftY: 33, width: 1512, height: 949)
+        assertEquals(visible.intersection(mainWall).clamped(in: mainWall), mainWall)
+    }
+
     @Test func testSafeAreaDefaultsToGaps() {
         let result = parseConfig("gaps.outer.top = 40")
         assertEquals(result.errors, [])
