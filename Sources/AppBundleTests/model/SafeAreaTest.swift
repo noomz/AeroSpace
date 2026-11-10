@@ -36,6 +36,28 @@ struct SafeAreaTest {
         assertEquals(window.clamped(in: mainWall), window)
     }
 
+    @Test func testWindowTallerThanItsMonitorStaysPutAcrossLayoutPasses() {
+        let upper = Rect(topLeftX: 0, topLeftY: 0, width: 1920, height: 1080)
+        let lower = Rect(topLeftX: 500, topLeftY: 1080, width: 1920, height: 1080)
+        let upperWall = Rect(topLeftX: 0, topLeftY: 65, width: 1920, height: 1015)
+        var window = Rect(topLeftX: 1000, topLeftY: 0, width: 800, height: 2100)
+        var frames: [Rect] = []
+        for _ in 0 ..< 3 {
+            let centerMonitor = lower.contains(window.center) ? lower : upper
+            window = window.movedToMonitor(from: centerMonitor, to: upper).clamped(in: upperWall)
+            frames.append(window)
+        }
+        let pinned = Rect(topLeftX: 1000, topLeftY: 65, width: 800, height: 2100)
+        assertEquals(frames, [pinned, pinned, pinned])
+    }
+
+    @Test func testWindowOnAnotherMonitorMovesToTheSameRelativeSpot() {
+        let left = Rect(topLeftX: -1920, topLeftY: 0, width: 1920, height: 1080)
+        let main = Rect(topLeftX: 0, topLeftY: 0, width: 2560, height: 1440)
+        let window = Rect(topLeftX: -960, topLeftY: 540, width: 400, height: 300)
+        assertEquals(window.movedToMonitor(from: left, to: main), Rect(topLeftX: 1280, topLeftY: 720, width: 400, height: 300))
+    }
+
     @Test func testSafeAreaDefaultsToGaps() {
         let result = parseConfig("gaps.outer.top = 40")
         assertEquals(result.errors, [])
