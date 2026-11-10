@@ -79,19 +79,8 @@ extension Window {
     @MainActor
     fileprivate func layoutFloatingWindow(_ context: LayoutContext, _ windowRect: Rect?) {
         let monitor = context.workspace.workspaceMonitorInfo
-        var target = windowRect
-        if let windowRect {
-            let currentMonitor = windowRect.center.monitorApproximation
-            if context.workspace != currentMonitor.visibleWorkspace {
-                let from = currentMonitor.visibleRect
-                let to = monitor.visibleRect
-                target = Rect(
-                    topLeftX: to.topLeftX + (windowRect.topLeftX - from.topLeftX) / from.width * to.width,
-                    topLeftY: to.topLeftY + (windowRect.topLeftY - from.topLeftY) / from.height * to.height,
-                    width: windowRect.width,
-                    height: windowRect.height,
-                )
-            }
+        var target = windowRect.map {
+            $0.movedToMonitor(from: $0.center.monitorApproximation.visibleRect, to: monitor.visibleRect)
         }
         if isFullscreen {
             target = fullscreenRect(context)
@@ -120,6 +109,21 @@ extension Window {
         noOuterGapsInFullscreen
             ? context.workspace.workspaceMonitorInfo.visibleRect
             : context.workspace.workspaceMonitorInfo.visibleRectPaddedByOuterGaps
+    }
+}
+
+extension Rect {
+    /// A floating window that sits on monitor `from` but belongs to monitor `to` moves to the same relative spot on `to`.
+    /// The window counts as already on `to` when its top-left is there, even if its center is not. A window bigger
+    /// than its monitor has its top-left pinned by the safe area, and its center can land on a neighbor monitor
+    func movedToMonitor(from: Rect, to: Rect) -> Rect {
+        if from == to || to.contains(topLeftCorner) { return self }
+        return Rect(
+            topLeftX: to.topLeftX + (topLeftX - from.topLeftX) / from.width * to.width,
+            topLeftY: to.topLeftY + (topLeftY - from.topLeftY) / from.height * to.height,
+            width: width,
+            height: height,
+        )
     }
 }
 
