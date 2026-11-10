@@ -64,6 +64,17 @@ extension Rect {
         )
     }
 
+    func intersection(_ other: Rect) -> Rect {
+        let minX = max(self.minX, other.minX)
+        let minY = max(self.minY, other.minY)
+        return Rect(
+            topLeftX: minX,
+            topLeftY: minY,
+            width: min(maxX, other.maxX) - minX,
+            height: min(maxY, other.maxY) - minY,
+        )
+    }
+
     /// Moves inside `bounds` without resizing. When bigger than `bounds`, the top-left corner wins
     func clamped(in bounds: Rect) -> Rect {
         Rect(

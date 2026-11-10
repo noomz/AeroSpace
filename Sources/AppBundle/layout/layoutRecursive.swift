@@ -83,7 +83,7 @@ extension Window {
             $0.movedToMonitor(from: $0.center.monitorApproximation.visibleRect, to: monitor.visibleRect, wall: monitor.safeAreaRect)
         }
         if isFullscreen {
-            target = fullscreenRect(context)
+            target = fullscreenRect(context).intersection(monitor.safeAreaRect)
             isFullscreen = false
         }
         guard var target else { return }
