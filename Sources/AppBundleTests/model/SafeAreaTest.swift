@@ -44,10 +44,26 @@ struct SafeAreaTest {
         var frames: [Rect] = []
         for _ in 0 ..< 3 {
             let centerMonitor = lower.contains(window.center) ? lower : upper
-            window = window.movedToMonitor(from: centerMonitor, to: upper).clamped(in: upperWall)
+            window = window.movedToMonitor(from: centerMonitor, to: upper, wall: upperWall).clamped(in: upperWall)
             frames.append(window)
         }
         let pinned = Rect(topLeftX: 1000, topLeftY: 65, width: 800, height: 2100)
+        assertEquals(frames, [pinned, pinned, pinned])
+    }
+
+    @Test func testNegativeSafeAreaStillKeepsTallWindowPut() {
+        // Upper monitor below a 33pt menu bar, with safe-area.top = -10, so the wall starts above the visible rect
+        let upperVisible = Rect(topLeftX: 0, topLeftY: 33, width: 1920, height: 1047)
+        let lower = Rect(topLeftX: 500, topLeftY: 1080, width: 1920, height: 1080)
+        let upperWall = Rect(topLeftX: 0, topLeftY: 23, width: 1920, height: 1057)
+        var window = Rect(topLeftX: 1000, topLeftY: 0, width: 800, height: 2120)
+        var frames: [Rect] = []
+        for _ in 0 ..< 3 {
+            let centerMonitor = lower.contains(window.center) ? lower : upperVisible
+            window = window.movedToMonitor(from: centerMonitor, to: upperVisible, wall: upperWall).clamped(in: upperWall)
+            frames.append(window)
+        }
+        let pinned = Rect(topLeftX: 1000, topLeftY: 23, width: 800, height: 2120)
         assertEquals(frames, [pinned, pinned, pinned])
     }
 
@@ -55,7 +71,7 @@ struct SafeAreaTest {
         let left = Rect(topLeftX: -1920, topLeftY: 0, width: 1920, height: 1080)
         let main = Rect(topLeftX: 0, topLeftY: 0, width: 2560, height: 1440)
         let window = Rect(topLeftX: -960, topLeftY: 540, width: 400, height: 300)
-        assertEquals(window.movedToMonitor(from: left, to: main), Rect(topLeftX: 1280, topLeftY: 720, width: 400, height: 300))
+        assertEquals(window.movedToMonitor(from: left, to: main, wall: main), Rect(topLeftX: 1280, topLeftY: 720, width: 400, height: 300))
     }
 
     @Test func testSafeAreaDefaultsToGaps() {
