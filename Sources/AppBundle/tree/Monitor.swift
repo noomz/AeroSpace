@@ -93,13 +93,14 @@ extension MonitorInfo {
     }
 
     @MainActor func toMonitorOrRearrangeMonitors() -> Monitor {
-        if let existing = pointToMonitor[rect.topLeftCorner] {
-            return existing
-        }
+        let point = rect.topLeftCorner
+        if let existing = pointToMonitor[point] { return existing }
         rearrangeMonitors() // If monitor configuration changed
-        // Normally, recursion should happen only once more because we must take the value from the cache
-        // (Unless, monitor configuration data race happens)
-        return self.toMonitorOrRearrangeMonitors()
+        if let existing = pointToMonitor[point] { return existing }
+        // A MonitorInfo captured before a display change can name a screen that no longer exists
+        if let closest = pointToMonitor.minBy({ ($0.key - point).vectorLength })?.value { return closest }
+        // No screens at all. Registering it would make the next gcMonitors() die in rearrangeMonitors()
+        return Monitor(self)
     }
 
     @MainActor func setVisibleWorkspace(_ workspace: Workspace) -> Bool { // todo revisit this API (new name: setVisibleWorkspace)
