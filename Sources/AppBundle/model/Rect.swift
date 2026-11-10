@@ -54,4 +54,23 @@ extension Rect {
     var size: CGSize { CGSize(width: width, height: height) }
 
     func getDimension(_ orientation: Orientation) -> CGFloat { orientation == .h ? width : height }
+
+    func inset(by outer: ResolvedGaps.Outer) -> Rect {
+        Rect(
+            topLeftX: topLeftX + outer.left.toDouble(),
+            topLeftY: topLeftY + outer.top.toDouble(),
+            width: width - outer.left.toDouble() - outer.right.toDouble(),
+            height: height - outer.top.toDouble() - outer.bottom.toDouble(),
+        )
+    }
+
+    /// Moves inside `bounds` without resizing. When bigger than `bounds`, the top-left corner wins
+    func clamped(in bounds: Rect) -> Rect {
+        Rect(
+            topLeftX: topLeftX.coerce(in: bounds.minX ... max(bounds.minX, bounds.maxX - width)),
+            topLeftY: topLeftY.coerce(in: bounds.minY ... max(bounds.minY, bounds.maxY - height)),
+            width: width,
+            height: height,
+        )
+    }
 }

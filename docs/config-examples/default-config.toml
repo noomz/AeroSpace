@@ -106,6 +106,18 @@ gaps.outer.bottom =     0
 gaps.outer.top =        0
 gaps.outer.right =      0
 
+# Safe area: an invisible wall on each monitor that floating windows can't cross.
+# It keeps them clear of the menu bar and of status bars like SketchyBar.
+# A window dragged past the wall snaps back inside when you release the mouse.
+# A window bigger than the safe area keeps its size, with its top-left corner on the wall.
+# The wall is measured from the monitor's visible area, like gaps.outer.
+# By default it is the same as gaps.outer. Once you add this table, the sides you leave out are 0.
+# Possible values are the same as for gaps.outer.
+# safe-area.top =    [{ monitor.main = 32 }, 0]
+# safe-area.left =   0
+# safe-area.bottom = 0
+# safe-area.right =  0
+
 # 'main' binding mode declaration
 # See: https://nikitabobko.github.io/AeroSpace/guide#binding-modes
 # 'main' binding mode must be always presented

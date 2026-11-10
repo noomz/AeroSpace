@@ -65,6 +65,13 @@ struct ResolvedGaps {
         let bottom: Int
         let top: Int
         let right: Int
+
+        @MainActor init(_ outer: Gaps.Outer, monitor: any MonitorInfo) {
+            left = outer.left.getValue(for: monitor)
+            bottom = outer.bottom.getValue(for: monitor)
+            top = outer.top.getValue(for: monitor)
+            right = outer.right.getValue(for: monitor)
+        }
     }
 
     @MainActor init(gaps: Gaps, monitor: any MonitorInfo) {
@@ -72,13 +79,7 @@ struct ResolvedGaps {
             vertical: gaps.inner.vertical.getValue(for: monitor),
             horizontal: gaps.inner.horizontal.getValue(for: monitor),
         )
-
-        outer = .init(
-            left: gaps.outer.left.getValue(for: monitor),
-            bottom: gaps.outer.bottom.getValue(for: monitor),
-            top: gaps.outer.top.getValue(for: monitor),
-            right: gaps.outer.right.getValue(for: monitor),
-        )
+        outer = .init(gaps.outer, monitor: monitor)
     }
 }
 
@@ -109,6 +110,10 @@ func parseGaps(_ raw: OrderedJson, _ backtrace: ConfigBacktrace, _ c: inout Conf
 
 func parseInner(_ raw: OrderedJson, _ backtrace: ConfigBacktrace, _ c: inout ConfigParserContext) -> Gaps.Inner {
     parseNonEmptyTable(raw, Gaps.Inner.zero, innerParser, backtrace, &c)
+}
+
+func parseSafeArea(_ raw: OrderedJson, _ backtrace: ConfigBacktrace, _ c: inout ConfigParserContext) -> Gaps.Outer? {
+    parseOuter(raw, backtrace, &c)
 }
 
 func parseOuter(_ raw: OrderedJson, _ backtrace: ConfigBacktrace, _ c: inout ConfigParserContext) -> Gaps.Outer {

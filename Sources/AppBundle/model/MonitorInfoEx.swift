@@ -1,14 +1,13 @@
 extension MonitorInfo {
     @MainActor
     var visibleRectPaddedByOuterGaps: Rect {
-        let topLeft = visibleRect.topLeftCorner
-        let gaps = ResolvedGaps(gaps: config.gaps, monitor: self)
-        return Rect(
-            topLeftX: topLeft.x + gaps.outer.left.toDouble(),
-            topLeftY: topLeft.y + gaps.outer.top.toDouble(),
-            width: visibleRect.width - gaps.outer.left.toDouble() - gaps.outer.right.toDouble(),
-            height: visibleRect.height - gaps.outer.top.toDouble() - gaps.outer.bottom.toDouble(),
-        )
+        visibleRect.inset(by: ResolvedGaps.Outer(config.gaps.outer, monitor: self))
+    }
+
+    /// The wall that floating windows can't cross. Each monitor has its own
+    @MainActor
+    var safeAreaRect: Rect {
+        visibleRect.inset(by: ResolvedGaps.Outer(config.safeArea ?? config.gaps.outer, monitor: self))
     }
 
     var monitorId_oneBased: Int? {
