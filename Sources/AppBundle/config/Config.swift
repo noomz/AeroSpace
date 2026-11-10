@@ -59,6 +59,8 @@ struct Config: Withable {
     var onFocusedMonitorChanged: Shell<any Command> = .empty
 
     var gaps: Gaps = .zero
+    /// Floating windows are kept inside it. nil means the wall follows gaps.outer
+    var safeArea: Gaps.Outer? = nil
     var workspaceToMonitorForceAssignment: [String: [MonitorDescription]] = [:]
     var modes: [String: Mode] = [:]
     var onWindowDetected: [WindowDetectedCallback] = []

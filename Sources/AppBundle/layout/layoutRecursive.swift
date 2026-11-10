@@ -78,37 +78,57 @@ private struct LayoutContext {
 extension Window {
     @MainActor
     fileprivate func layoutFloatingWindow(_ context: LayoutContext, _ windowRect: Rect?) {
-        let workspace = context.workspace
-        let currentMonitor = windowRect?.center.monitorApproximation
-        if let currentMonitor, let windowRect, workspace != currentMonitor.visibleWorkspace {
-            let windowTopLeftCorner = windowRect.topLeftCorner
-            let xProportion = (windowTopLeftCorner.x - currentMonitor.visibleRect.topLeftX) / currentMonitor.visibleRect.width
-            let yProportion = (windowTopLeftCorner.y - currentMonitor.visibleRect.topLeftY) / currentMonitor.visibleRect.height
-
-            let workspaceRect = workspace.workspaceMonitorInfo.visibleRect
-            var newX = workspaceRect.topLeftX + xProportion * workspaceRect.width
-            var newY = workspaceRect.topLeftY + yProportion * workspaceRect.height
-
-            let windowWidth = windowRect.width
-            let windowHeight = windowRect.height
-            newX = newX.coerce(in: workspaceRect.minX ... max(workspaceRect.minX, workspaceRect.maxX - windowWidth))
-            newY = newY.coerce(in: workspaceRect.minY ... max(workspaceRect.minY, workspaceRect.maxY - windowHeight))
-
-            setAxFrame(CGPoint(x: newX, y: newY), nil)
+        let monitor = context.workspace.workspaceMonitorInfo
+        var target = windowRect
+        if let windowRect {
+            let currentMonitor = windowRect.center.monitorApproximation
+            if context.workspace != currentMonitor.visibleWorkspace {
+                let from = currentMonitor.visibleRect
+                let to = monitor.visibleRect
+                target = Rect(
+                    topLeftX: to.topLeftX + (windowRect.topLeftX - from.topLeftX) / from.width * to.width,
+                    topLeftY: to.topLeftY + (windowRect.topLeftY - from.topLeftY) / from.height * to.height,
+                    width: windowRect.width,
+                    height: windowRect.height,
+                )
+            }
         }
         if isFullscreen {
-            layoutFullscreen(context)
+            target = fullscreenRect(context)
             isFullscreen = false
+        }
+        guard var target else { return }
+        // The wall waits for the drop. During a drag it would fight the mouse and block crossing to another monitor
+        if !isLeftMouseButtonDown {
+            target = target.clamped(in: monitor.safeAreaRect)
+        }
+        let resized = windowRect.map { !$0.size.isClose(to: target.size) } ?? true
+        let moved = windowRect.map { !$0.topLeftCorner.isClose(to: target.topLeftCorner) } ?? true
+        if moved || resized {
+            setAxFrame(target.topLeftCorner, resized ? target.size : nil)
         }
     }
 
     @MainActor
     fileprivate func layoutFullscreen(_ context: LayoutContext) {
-        let monitorRect = noOuterGapsInFullscreen
+        let rect = fullscreenRect(context)
+        setAxFrame(rect.topLeftCorner, rect.size)
+    }
+
+    @MainActor
+    private func fullscreenRect(_ context: LayoutContext) -> Rect {
+        noOuterGapsInFullscreen
             ? context.workspace.workspaceMonitorInfo.visibleRect
             : context.workspace.workspaceMonitorInfo.visibleRectPaddedByOuterGaps
-        setAxFrame(monitorRect.topLeftCorner, CGSize(width: monitorRect.width, height: monitorRect.height))
     }
+}
+
+extension CGPoint {
+    fileprivate func isClose(to other: CGPoint) -> Bool { abs(x - other.x) <= 1 && abs(y - other.y) <= 1 }
+}
+
+extension CGSize {
+    fileprivate func isClose(to other: CGSize) -> Bool { abs(width - other.width) <= 1 && abs(height - other.height) <= 1 }
 }
 
 extension TilingContainer {

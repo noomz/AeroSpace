@@ -217,17 +217,18 @@ final class MacWindow: Window {
             // Just a small optimization to avoid unnecessary AX calls for non floating windows
             // Tiling windows should be unhidden with layoutRecursive anyway
             case .floatingWindow:
-                let workspaceRect = nodeWorkspace.workspaceMonitorInfo.rect
-                var newX = workspaceRect.topLeftX + workspaceRect.width * prevUnhiddenProportionalPositionInsideWorkspaceRect.x
-                var newY = workspaceRect.topLeftY + workspaceRect.height * prevUnhiddenProportionalPositionInsideWorkspaceRect.y
+                let monitor = nodeWorkspace.workspaceMonitorInfo
+                let workspaceRect = monitor.rect
                 // todo we probably should replace lastFloatingSize with proper floating window sizing
                 // https://github.com/nikitabobko/AeroSpace/issues/1519
-                let windowWidth = lastFloatingSize?.width ?? 0
-                let windowHeight = lastFloatingSize?.height ?? 0
-                newX = newX.coerce(in: workspaceRect.minX ... max(workspaceRect.minX, workspaceRect.maxX - windowWidth))
-                newY = newY.coerce(in: workspaceRect.minY ... max(workspaceRect.minY, workspaceRect.maxY - windowHeight))
+                let restored = Rect(
+                    topLeftX: workspaceRect.topLeftX + workspaceRect.width * prevUnhiddenProportionalPositionInsideWorkspaceRect.x,
+                    topLeftY: workspaceRect.topLeftY + workspaceRect.height * prevUnhiddenProportionalPositionInsideWorkspaceRect.y,
+                    width: lastFloatingSize?.width ?? 0,
+                    height: lastFloatingSize?.height ?? 0,
+                ).clamped(in: monitor.safeAreaRect)
 
-                setAxFrame(CGPoint(x: newX, y: newY), nil)
+                setAxFrame(restored.topLeftCorner, nil)
                 self.prevUnhiddenProportionalPositionInsideWorkspaceRect = nil
             case .tiling, .rootTilingContainer:
                 // Tiling windows are positioned by layoutRecursive, safe to clear
