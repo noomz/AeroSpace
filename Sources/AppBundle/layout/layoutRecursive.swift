@@ -80,7 +80,7 @@ extension Window {
     fileprivate func layoutFloatingWindow(_ context: LayoutContext, _ windowRect: Rect?) {
         let monitor = context.workspace.workspaceMonitorInfo
         var target = windowRect.map {
-            $0.movedToMonitor(from: $0.center.monitorApproximation.visibleRect, to: monitor.visibleRect)
+            $0.movedToMonitor(from: $0.center.monitorApproximation.visibleRect, to: monitor.visibleRect, wall: monitor.safeAreaRect)
         }
         if isFullscreen {
             target = fullscreenRect(context)
@@ -114,10 +114,11 @@ extension Window {
 
 extension Rect {
     /// A floating window that sits on monitor `from` but belongs to monitor `to` moves to the same relative spot on `to`.
-    /// The window counts as already on `to` when its top-left is there, even if its center is not. A window bigger
-    /// than its monitor has its top-left pinned by the safe area, and its center can land on a neighbor monitor
-    func movedToMonitor(from: Rect, to: Rect) -> Rect {
-        if from == to || to.contains(topLeftCorner) { return self }
+    /// The window counts as already on `to` when its top-left is on `to` or inside its `wall`, even if its center is not.
+    /// A window bigger than its monitor has its top-left pinned to the wall, and its center can land on a neighbor monitor.
+    /// The wall can reach past `to` when the safe area has negative insets
+    func movedToMonitor(from: Rect, to: Rect, wall: Rect) -> Rect {
+        if from == to || to.contains(topLeftCorner) || wall.contains(topLeftCorner) { return self }
         return Rect(
             topLeftX: to.topLeftX + (topLeftX - from.topLeftX) / from.width * to.width,
             topLeftY: to.topLeftY + (topLeftY - from.topLeftY) / from.height * to.height,
