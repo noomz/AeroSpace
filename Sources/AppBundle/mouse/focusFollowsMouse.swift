@@ -3,6 +3,15 @@ import Common
 
 @MainActor private var focusFollowsMouseMonitor: Any? = nil
 @MainActor private var focusFollowsTask: Task<(), any Error>? = nil
+/// Where the mouse was when focus last moved by other means (a new window, a hotkey, a click).
+/// While the mouse rests in the window under that point, it doesn't take focus back, so a new window that opened
+/// away from the mouse isn't buried by a small mouse move. Cleared once the mouse rests on another window
+@MainActor private var focusLatchPoint: CGPoint? = nil
+
+@MainActor func latchFocusFollowsMouse() {
+    guard focusFollowsMouseMonitor != nil else { return }
+    focusLatchPoint = NSEvent.mouseLocation.withYAxisFlipped
+}
 
 @MainActor func syncFocusFollowsMouse() {
     if config.focusFollowsMouse.enabled == (focusFollowsMouseMonitor != nil) {
@@ -14,6 +23,7 @@ import Common
         focusFollowsMouseMonitor = nil
         focusFollowsTask?.cancel()
         focusFollowsTask = nil
+        focusLatchPoint = nil
         return
     }
 
@@ -41,10 +51,14 @@ import Common
             // Menubar dropdowns and menu-like fake windows resolve to no managed window and are ignored.
             // Accessibility goes first, because it skips click-through overlays. When it doesn't resolve to a managed
             // window (it fails on some web content in WKWebView-based apps), the window server's z-order is the fallback
-            let axHit = await axWindowUnderMouse(location)
+            guard let window = await windowUnder(location) else { return }
             try checkCancellation()
-            guard let window = axHit.flatMap(Window.get(byNativeHit:)) ?? cgWindowUnderMouse(location).flatMap(Window.get(byNativeHit:))
-            else { return }
+            if let latch = focusLatchPoint {
+                let latched = await windowUnder(latch)
+                try checkCancellation()
+                if latched == window { return }
+                if focusLatchPoint == latch { focusLatchPoint = nil }
+            }
             if let focused = globalFocus.windowOrNil, focused != window, focused.nodeWorkspace == window.nodeWorkspace,
                try await isCoveringFloatingWindow(focused, location, percent: config.focusFollowsMouse.floatingCoverPercent)
             {
@@ -64,6 +78,12 @@ import Common
             }
         }
     }
+}
+
+@MainActor
+private func windowUnder(_ location: CGPoint) async -> Window? {
+    let axHit = await axWindowUnderMouse(location)
+    return axHit.flatMap(Window.get(byNativeHit:)) ?? cgWindowUnderMouse(location).flatMap(Window.get(byNativeHit:))
 }
 
 /// Native window ids are mapped to `OpaqueWindowId` per app, so the hit-test reports the owning pid too

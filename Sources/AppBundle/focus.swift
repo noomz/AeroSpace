@@ -146,6 +146,7 @@ extension Workspace {
         hasFocusedMonitorChanged = true
     }
     _lastKnownFocus = frozenFocus
+    if hasFocusChanged && refreshSessionEvent?.isFocusFollowsMouse != true { latchFocusFollowsMouse() }
 
     if onFocusChangedRecursionGuard { return }
     onFocusChangedRecursionGuard = true
