@@ -42,9 +42,11 @@ final class MacWindow: Window {
         let window = MacWindow(windowId, macApp, lastFloatingSize: rect?.size, parent: data.parent, adaptiveWeight: data.adaptiveWeight, index: data.index)
         allWindowsMap[windowId] = window
 
-        try await debugWindowsIfRecording(window, .cancellable)
-        if try await !restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: window) {
-            await runOnWindowDetected(ifConventional: window)
+        try await withRulesPending(window) {
+            try await debugWindowsIfRecording(window, .cancellable)
+            if try await !restoreClosedWindowsCacheIfNeeded(newlyDetectedWindow: window) {
+                await runOnWindowDetected(ifConventional: window)
+            }
         }
         return window
     }
@@ -320,12 +322,7 @@ private func unbindAndGetBindingDataForNewWindow(_ windowId: OpaqueWindowId, _ m
     return switch try await macApp.getAxUiElementWindowType(windowId, windowLevel, cm) {
         case .popup: BindingData(parent: macosPopupWindowsContainer, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
         case .dialog: BindingData(parent: workspace.floatingWindowsContainer, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
-        case .window:
-            // Pre-check: if on-window-detected callbacks will make this window floating/sticky,
-            // bind as floating from the start to avoid a tiling flash (other windows resizing momentarily)
-            willCallbackMakeFloatingBeforeWindowExists(appBundleId: macApp.rawAppBundleId, appName: macApp.name)
-                ? BindingData(parent: workspace.floatingWindowsContainer, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
-                : unbindAndGetBindingDataForNewTilingWindow(workspace, window: window)
+        case .window: unbindAndGetBindingDataForNewTilingWindow(workspace, window: window)
     }
 }
 
@@ -344,58 +341,39 @@ private func unbindAndGetBindingDataForNewTilingWindow(_ workspace: Workspace, w
     }
 }
 
-/// Pre-check whether on-window-detected callbacks will certainly make a window floating or sticky.
-/// Uses only app-level matchers (app-id, app-name) since the window doesn't exist yet.
-/// This avoids binding as tiling first and then immediately converting to floating,
-/// which causes a visible flash where other tiled windows resize momentarily.
-@MainActor
-func willCallbackMakeFloatingBeforeWindowExists(appBundleId: String?, appName: String?) -> Bool {
-    for callback in config.onWindowDetected {
-        switch callback.matcher {
-            case .command:
-                // Command matchers (`if = 'test ...'`) depend on window properties (title,
-                // workspace) that don't exist pre-creation, so we cannot confirm this callback
-                // actually matches. Never pre-float on an unconfirmed match: otherwise the first
-                // float/sticky command-rule in the config pre-floats EVERY window of EVERY app,
-                // and tiling-only callbacks (layout accordion/tiles) then hit "non-tiling" and
-                // can't recover it. Genuinely-floating apps still float via the real callback.
-                continue
-            case .legacy(let legacy):
-                if let startupMatcher = legacy.duringAeroSpaceStartup, startupMatcher != isStartup {
-                    continue
-                }
-                if let appId = legacy.appId, appId != appBundleId {
-                    continue
-                }
-                if let regex = legacy.appNameRegexSubstring, !(appName ?? "").contains(caseInsensitiveRegex: regex) {
-                    continue
-                }
+/// Windows whose on-window-detected rules are still running. Rules need the window bound in the tree, so it sits in its
+/// pre-rule place meanwhile. The rules await (an AX title read per `%{window-title}`), and a session that runs in that gap
+/// must not draw or announce that place: see `Workspace.isHeldByPendingRules` and `windowSnapshotEntry`
+@MainActor private var windowsWithPendingRules: Set<OpaqueWindowId> = []
+@MainActor private var layoutHeldByPendingRules = false
 
-                let hasMatchersThatNeedWindow = legacy.windowTitleRegexSubstring != nil ||
-                    legacy.workspace != nil
-                if hasMatchersThatNeedWindow {
-                    if !callback.checkFurtherCallbacks {
-                        return false
-                    }
-                    continue
-                }
-                if callback.makesWindowFloatingOrSticky {
-                    return true
-                }
-                if !callback.checkFurtherCallbacks {
-                    return false
-                }
+@MainActor
+func withRulesPending(_ window: Window, _ body: () async throws -> ()) async rethrows {
+    windowsWithPendingRules.insert(window.windowId)
+    defer {
+        windowsWithPendingRules.remove(window.windowId)
+        // A cancelled session never reaches its own layout. The rules can also run in a focus-follows-mouse session,
+        // which doesn't lay out at all
+        if Task.isCancelled || layoutHeldByPendingRules {
+            layoutHeldByPendingRules = false
+            scheduleCancellableCompleteRefreshSession(.windowRulesSettled)
         }
     }
-    return false
+    try await body()
 }
 
-extension WindowDetectedCallback {
-    fileprivate var makesWindowFloatingOrSticky: Bool {
-        run.flatten().contains { command in
-            guard command.info.kind == CmdKind.layout, let layoutCmd = command as? LayoutCommand else { return false }
-            let descriptions = layoutCmd.args.toggleBetween.val
-            return descriptions.contains(.floating) || descriptions.contains(.sticky)
+extension Window {
+    @MainActor var hasPendingRules: Bool { windowsWithPendingRules.contains(windowId) }
+}
+
+extension Workspace {
+    /// Re-tiling while a window on the workspace runs its rules would draw that window in its pre-rule place and push
+    /// its siblings aside. The window that settles last schedules the skipped layout
+    @MainActor func layoutWorkspaceUnlessRulesPending() async throws {
+        if windowsWithPendingRules.contains(where: { Window.get(byId: $0)?.nodeWorkspace == self }) {
+            layoutHeldByPendingRules = true
+        } else {
+            try await layoutWorkspace()
         }
     }
 }

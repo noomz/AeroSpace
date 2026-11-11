@@ -50,6 +50,15 @@ func diffWindowSnapshots(
     return (closed + moved, new)
 }
 
+/// A window's entry in the next snapshot. `current` is nil while the window is outside any workspace.
+///
+/// - Outside any workspace: the old entry stays, so the window neither moves nor closes.
+/// - On-window-detected rules still running: the old entry stays, or none for a new window. Its place is pre-rule, and
+///   announcing it would send a `window-moved` for a workspace the rules may take it away from.
+func windowSnapshotEntry(current: WindowSnapshotEntry?, was: WindowSnapshotEntry?, hasPendingRules: Bool) -> WindowSnapshotEntry? {
+    hasPendingRules ? was : current ?? was
+}
+
 /// Whether the diff is frozen for this check, and whether it stays frozen for the next one.
 ///
 /// Behind the lock screen AeroSpace garbage-collects every window and re-registers them only in the first heavy
@@ -78,15 +87,14 @@ func windowDiffFreeze(isLocked: Bool, unlockPending: Bool, endOfHeavySession: Bo
     var sticky: Set<OpaqueWindowId> = []
     for window in MacWindow.allWindows {
         if window.isSticky { sticky.insert(window.windowId) }
-        if let workspace = window.nodeWorkspace?.name {
-            new[window.windowId] = WindowSnapshotEntry(
-                workspace: workspace,
-                appBundleId: window.app.rawAppBundleId,
-                appName: window.app.name,
-            )
-        } else if let was = windowSnapshot?[window.windowId] {
-            new[window.windowId] = was // alive, outside any workspace for now: neither a move nor a close
+        let current = window.nodeWorkspace.map {
+            WindowSnapshotEntry(workspace: $0.name, appBundleId: window.app.rawAppBundleId, appName: window.app.name)
         }
+        new[window.windowId] = windowSnapshotEntry(
+            current: current,
+            was: windowSnapshot?[window.windowId],
+            hasPendingRules: window.hasPendingRules,
+        )
     }
     let (events, snapshot) = diffWindowSnapshots(
         old: windowSnapshot ?? [:],

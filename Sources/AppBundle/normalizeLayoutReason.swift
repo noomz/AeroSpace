@@ -12,8 +12,10 @@
         let popup = (node as! MacWindow)
         let windowLevel = try await popup.getWindowLevel(.cancellable)
         if try await popup.isWindowHeuristic(windowLevel, .cancellable) {
-            try await popup.relayoutWindow(on: globalFocus.workspace, .cancellable)
-            await runOnWindowDetected(ifConventional: popup)
+            try await withRulesPending(popup) {
+                try await popup.relayoutWindow(on: globalFocus.workspace, .cancellable)
+                await runOnWindowDetected(ifConventional: popup)
+            }
         }
     }
 }

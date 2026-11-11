@@ -114,4 +114,29 @@ struct WindowEventsDiffTest {
         let r = diff([3: kitty, 1: on("1", kitty)], [2: kitty, 1: kitty])
         assertEquals(r.events.map(\.eventType), [.windowClosed, .windowMoved, .windowMoved])
     }
+
+    private func entry(_ current: WindowSnapshotEntry?, was: WindowSnapshotEntry?, pending: Bool) -> WindowSnapshot {
+        windowSnapshotEntry(current: current, was: was, hasPendingRules: pending).map { [1: $0] } ?? [:]
+    }
+
+    @Test func testNewWindowIsAnnouncedOnlyWhereItsRulesLeaveIt() {
+        // Bound on the focused workspace "1" while the rules run, then moved to "T" by a rule
+        let midRules = diff([:], entry(on("1", kitty), was: nil, pending: true))
+        assertEquals(midRules.events, [])
+        let settled = diff(midRules.snapshot, entry(kitty, was: midRules.snapshot[1], pending: false))
+        assertEquals(settled.events, [
+            .windowMoved(windowId: 1, workspace: "T", prevWorkspace: nil, appBundleId: "net.kovidgoyal.kitty", appName: "kitty"),
+        ])
+    }
+
+    @Test func testKnownWindowWithPendingRulesNeitherMovesNorCloses() {
+        // A popup that turned into a window runs the rules again from wherever it was relaid out
+        let r = diff([1: kitty], entry(on("1", kitty), was: kitty, pending: true))
+        assertEquals(r.events, [])
+    }
+
+    @Test func testWindowOutsideAnyWorkspaceKeepsItsEntry() {
+        assertEquals(windowSnapshotEntry(current: nil, was: kitty, hasPendingRules: false), kitty)
+        assertEquals(windowSnapshotEntry(current: on("1", kitty), was: kitty, hasPendingRules: false), on("1", kitty))
+    }
 }

@@ -205,7 +205,7 @@ private func layoutWorkspaces() async throws {
     for monitor in monitors {
         let workspace = monitor.visibleWorkspace
         try await unhide(workspace.allLeafWindowsRecursive as! [MacWindow], monitor: monitor) // todo as!
-        try await workspace.layoutWorkspace()
+        try await workspace.layoutWorkspaceUnlessRulesPending()
     }
     let privateSpace = config.hideWindowsInPrivateSpace ? PrivateSpace.getOrCreate() : nil
     for workspace in Workspace.all where !workspace.isVisible {
