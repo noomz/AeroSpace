@@ -72,6 +72,21 @@ func windowDiffFreeze(isLocked: Bool, unlockPending: Bool, endOfHeavySession: Bo
 
 @MainActor private var windowSnapshot: WindowSnapshot? = nil
 @MainActor private var unlockPending = false
+/// Held until the refresh has asked exclusive tiling, so the draw is not the first thing that
+/// places the window. Flushed unjudged when that refresh does not draw.
+@MainActor private var pendingWindowMoves: [ServerEvent] = []
+
+@MainActor func takePendingWindowMoves() -> [ServerEvent] {
+    let events = pendingWindowMoves
+    pendingWindowMoves = []
+    return events
+}
+
+@MainActor func broadcastPendingWindowMoves() {
+    for event in takePendingWindowMoves() {
+        broadcastEvent(event)
+    }
+}
 
 /// Broadcasts `window-moved`/`window-closed` for what changed since the last check. Runs at the end of
 /// `refreshModel_nonCancellable` and of a heavy refresh session, after `on-window-detected` callbacks and
@@ -105,6 +120,10 @@ func windowDiffFreeze(isLocked: Bool, unlockPending: Bool, endOfHeavySession: Bo
     )
     windowSnapshot = snapshot
     for event in events {
-        broadcastEvent(event)
+        if event.eventType == .windowMoved {
+            pendingWindowMoves.append(event)
+        } else {
+            broadcastEvent(event)
+        }
     }
 }

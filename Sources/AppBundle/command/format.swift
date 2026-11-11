@@ -246,6 +246,11 @@ private func toLayoutString(tc: TilingContainer) -> String {
     }
 }
 
+func windowLayoutName(_ w: Window) -> String {
+    if case .success(.string(let s)) = toLayoutResult(w: w) { return s }
+    return "NULL-WINDOW-LAYOUT"
+}
+
 private func toLayoutResult(w: Window) -> Result<Primitive, InterVarExpansionError> {
     guard let parent = w.parent else { return .failure(.nullParent("NULL-PARENT")) }
     return switch getChildParentRelation(child: w, parent: parent) {

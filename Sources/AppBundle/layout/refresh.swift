@@ -54,7 +54,7 @@ func runHeavyCompleteRefreshSession(
             SecureInputPanel.shared.refresh()
             try await normalizeLayoutReason()
             checkWindowEvents(endOfHeavySession: true)
-            if shouldLayoutWorkspaces { try await layoutWorkspaces() }
+            if shouldLayoutWorkspaces { try await layoutWorkspaces() } else { broadcastPendingWindowMoves() }
         }
     }
     switch res {
@@ -92,7 +92,7 @@ func runLightSession<T>(
         // Focus it before showing it, or it shows that stale look and then redraws twice
         let focusBeforeShowing = focusBefore != focusAfter && (focusAfter as? MacWindow)?.isHiddenInPrivateSpace == true
         if focusBeforeShowing { try await (focusAfter as? MacWindow)?.nativeFocusAndWait() } // syncFocusToMacOs
-        if !event.isFocusFollowsMouse { try await layoutWorkspaces() }
+        if !event.isFocusFollowsMouse { try await layoutWorkspaces() } else { broadcastPendingWindowMoves() }
         if focusBefore != focusAfter && !focusBeforeShowing {
             focusAfter?.nativeFocus() // syncFocusToMacOs
         }
@@ -168,6 +168,7 @@ enum OptimalHideCorner {
 @MainActor
 private func layoutWorkspaces() async throws {
     if screenSleepWakeInProgress { return }
+    await judgeExclusiveTilingBeforeDraw()
     if !TrayMenuModel.shared.isEnabled {
         for workspace in Workspace.all {
             try await unhide(workspace.allLeafWindowsRecursive as! [MacWindow], monitor: workspace.workspaceMonitorInfo) // todo as!

@@ -22,6 +22,9 @@ public struct ServerEvent: Codable, Sendable, Equatable {
 
     public var eventType: ServerEventType { _event }
 
+    /// `window-moved` only. The refresh holds these until exclusive tiling has judged them.
+    var windowMovedId: UInt64? { _event == .windowMoved ? windowId?.rawId : nil }
+
     public static func focusChanged(windowId: OpaqueWindowId?, workspace: String) -> ServerEvent {
         ServerEvent(_event: .focusChanged, windowId: windowId, workspace: workspace)
     }
