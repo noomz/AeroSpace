@@ -189,7 +189,7 @@ struct FocusCommand: Command {
 
 private struct FloatingWindowData {
     let window: Window
-    let center: CGPoint
+    let center: Point
 
     let tilingParent: TilingContainer
     let adaptiveWeight: CGFloat

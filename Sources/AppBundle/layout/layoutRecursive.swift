@@ -15,7 +15,7 @@ extension Workspace {
 
 extension TreeNode {
     @MainActor
-    fileprivate func layoutRecursive(_ point: CGPoint, width: CGFloat, height: CGFloat, virtual: Rect, _ context: LayoutContext) async throws {
+    fileprivate func layoutRecursive(_ point: Point, width: CGFloat, height: CGFloat, virtual: Rect, _ context: LayoutContext) async throws {
         let physicalRect = Rect(topLeftX: point.x, topLeftY: point.y, width: width, height: height)
         switch nodeCases {
             case .monitor(let it):
@@ -128,8 +128,8 @@ extension Rect {
     }
 }
 
-extension CGPoint {
-    fileprivate func isClose(to other: CGPoint) -> Bool { abs(x - other.x) <= 1 && abs(y - other.y) <= 1 }
+extension Point {
+    fileprivate func isClose(to other: Point) -> Bool { abs(x - other.x) <= 1 && abs(y - other.y) <= 1 }
 }
 
 extension CGSize {
@@ -138,7 +138,7 @@ extension CGSize {
 
 extension TilingContainer {
     @MainActor
-    fileprivate func layoutTiles(_ point: CGPoint, width: CGFloat, height: CGFloat, virtual: Rect, _ context: LayoutContext) async throws {
+    fileprivate func layoutTiles(_ point: Point, width: CGFloat, height: CGFloat, virtual: Rect, _ context: LayoutContext) async throws {
         var point = point
         var virtualPoint = virtual.topLeftCorner
 
@@ -175,7 +175,7 @@ extension TilingContainer {
     }
 
     @MainActor
-    fileprivate func layoutAccordion(_ point: CGPoint, width: CGFloat, height: CGFloat, virtual: Rect, _ context: LayoutContext) async throws {
+    fileprivate func layoutAccordion(_ point: Point, width: CGFloat, height: CGFloat, virtual: Rect, _ context: LayoutContext) async throws {
         let inhabitedChildren = inhabitedChildren
 
         guard let mruIndex: Int = mostRecentInhabitedChild?.ownIndex(in: .inhabitedOnly) else { return }
@@ -192,7 +192,7 @@ extension TilingContainer {
             switch orientation {
                 case .h:
                     try await child.layoutRecursive(
-                        point + CGPoint(x: lPadding, y: 0),
+                        point + Point(x: lPadding, y: 0),
                         width: width - rPadding - lPadding,
                         height: height,
                         virtual: virtual,
@@ -200,7 +200,7 @@ extension TilingContainer {
                     )
                 case .v:
                     try await child.layoutRecursive(
-                        point + CGPoint(x: 0, y: lPadding),
+                        point + Point(x: 0, y: lPadding),
                         width: width,
                         height: height - lPadding - rPadding,
                         virtual: virtual,

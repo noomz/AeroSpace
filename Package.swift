@@ -2,17 +2,32 @@
 
 import CompilerPluginSupport
 import PackageDescription
+import Foundation
 
-let swiftSettings: [SwiftSetting] = [
+var swiftSettings: [SwiftSetting] = [
     .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
     .strictMemorySafety(),
 ]
+
+let env = ProcessInfo.processInfo.environment
+if env["SWIFTPM_WARNINGS_AS_ERRORS"] != nil {
+    swiftSettings.append(.treatAllWarnings(as: .error))
+}
+if let ms = env["SWIFTPM_WARN_LONG_FUNCTION_BODIES_MS"] {
+    swiftSettings.append(.unsafeFlags(["-Xfrontend", "-warn-long-function-bodies=\(ms)"]))
+}
+if let ms = env["SWIFTPM_WARN_LONG_EXPRESSION_TYPE_CHECKING_MS"] {
+    swiftSettings.append(.unsafeFlags(["-Xfrontend", "-warn-long-expression-type-checking=\(ms)"]))
+}
+
+let targetMacosVersion: Int = env["SWIFTPM_MACOS_MIN_DEPLOYMENT_TARGET"].flatMap(Int.init)
+    ?? ProcessInfo.processInfo.operatingSystemVersion.majorVersion
 
 let package = Package(
     name: "AeroSpacePackage",
     // Runtime support for parameterized protocol types is only available in macOS 13.0.0 or newer
     // And it specifies deploymentTarget for CLI
-    platforms: [.macOS(.v13)], // #MACOS_MIN_DEPLOYMENT_TARGET
+    platforms: [.macOS("\(targetMacosVersion).0")],
     // Products define the executables and libraries a package produces, making them visible to other packages.
     products: [
         .executable(name: "aerospace", targets: ["Cli"]),
@@ -26,7 +41,6 @@ let package = Package(
         .package(url: "https://github.com/dduan/TOMLDecoder", exact: "0.4.5"),
         .package(url: "https://github.com/apple/swift-collections.git", exact: "1.6.0", traits: ["UnstableHashedContainers"]),
         .package(url: "https://github.com/soffes/HotKey.git", exact: "0.2.1"),
-        .package(url: "https://github.com/swiftlang/swift-syntax.git", exact: "604.0.0"),
     ],
     // Targets are the basic building blocks of a package, defining a module or a test suite.
     // Targets can depend on other targets in this package and products from dependencies.
@@ -36,13 +50,11 @@ let package = Package(
             name: "PrivateApi",
             path: "Sources/PrivateApi",
             publicHeadersPath: "include",
+            swiftSettings: swiftSettings,
         ),
         .macro(
             name: "Macros",
-            dependencies: [
-                .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
-                .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
-            ],
+            swiftSettings: swiftSettings,
         ),
         .target(
             name: "Common",

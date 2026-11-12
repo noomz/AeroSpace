@@ -23,7 +23,7 @@ import Common
 
 struct FrozenMonitor: Sendable {
     let visibleWorkspace: String
-    let topLeftCorner: CGPoint
+    let topLeftCorner: Point
     let workspaces: [FrozenWorkspace]
 
     @MainActor init(_ monitor: Monitor) {

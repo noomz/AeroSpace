@@ -6,11 +6,11 @@ import Common
 /// Where the mouse was when focus last moved by other means (a new window, a hotkey, a click).
 /// While the mouse rests in the window under that point, it doesn't take focus back, so a new window that opened
 /// away from the mouse isn't buried by a small mouse move. Cleared once the mouse rests on another window
-@MainActor private var focusLatchPoint: CGPoint? = nil
+@MainActor private var focusLatchPoint: Point? = nil
 
 @MainActor func latchFocusFollowsMouse() {
     guard focusFollowsMouseMonitor != nil else { return }
-    focusLatchPoint = NSEvent.mouseLocation.withYAxisFlipped
+    focusLatchPoint = NSEvent.mouseLocation.asMyPoint.withYAxisFlipped
 }
 
 @MainActor func syncFocusFollowsMouse() {
@@ -30,7 +30,7 @@ import Common
     // Interestingly, this callback seems to not fire when the mouse is down which is good,
     // because this is how I want it to work for windows/tabs/files dragging
     focusFollowsMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved) { @MainActor event in
-        let location = event.locationInWindow.withYAxisFlipped
+        let location = event.locationInWindow.asMyPoint.withYAxisFlipped
         focusFollowsTask?.cancel()
         guard let token: RunSessionGuard = .isServerEnabled else { return }
         focusFollowsTask = Task.startUnstructured { @MainActor in
@@ -81,7 +81,7 @@ import Common
 }
 
 @MainActor
-private func windowUnder(_ location: CGPoint) async -> Window? {
+private func windowUnder(_ location: Point) async -> Window? {
     let axHit = await axWindowUnderMouse(location)
     return axHit.flatMap(Window.get(byNativeHit:)) ?? cgWindowUnderMouse(location).flatMap(Window.get(byNativeHit:))
 }
@@ -105,7 +105,7 @@ private func isFocusPinnedByFrontmostApp() -> Bool {
 }
 
 @concurrent
-private nonisolated func axWindowUnderMouse(_ location: CGPoint) async -> NativeWindowHit? {
+private nonisolated func axWindowUnderMouse(_ location: Point) async -> NativeWindowHit? {
     let systemwide = AXUIElementCreateSystemWide()
     var element: AXUIElement?
     if unsafe AXUIElementCopyElementAtPosition(systemwide, Float(location.x), Float(location.y), &element) != .success {
@@ -119,7 +119,7 @@ private nonisolated func axWindowUnderMouse(_ location: CGPoint) async -> Native
 }
 
 /// The frontmost on-screen window containing the location, in window server z-order
-private func cgWindowUnderMouse(_ location: CGPoint) -> NativeWindowHit? {
+private func cgWindowUnderMouse(_ location: Point) -> NativeWindowHit? {
     let state = signposter.beginInterval(#function)
     defer { signposter.endInterval(#function, state) }
     let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
@@ -127,7 +127,7 @@ private func cgWindowUnderMouse(_ location: CGPoint) -> NativeWindowHit? {
     for window in windows {
         guard let boundsDict = window[kCGWindowBounds as String] as? NSDictionary,
               let bounds = CGRect(dictionaryRepresentation: boundsDict as CFDictionary),
-              bounds.contains(location),
+              bounds.contains(location.asCGPoint),
               (window[kCGWindowAlpha as String] as? Double ?? 1) > 0 // Fully transparent windows aren't seen
         else { continue }
         guard let nativeWindowId = window[kCGWindowNumber as String] as? CGWindowID,
@@ -139,7 +139,7 @@ private func cgWindowUnderMouse(_ location: CGPoint) -> NativeWindowHit? {
 }
 
 @MainActor
-private func isPastEdgeInset(_ window: Window, _ point: CGPoint, inset: Int) async throws -> Bool {
+private func isPastEdgeInset(_ window: Window, _ point: Point, inset: Int) async throws -> Bool {
     // An unknown frame can't prove the mouse is near the edge, so it doesn't block focus
     guard inset > 0, let rect = try await window.getAxRect(.cancellable) else { return true }
     // Cap the inset, so the middle half of a small window still takes focus
@@ -150,7 +150,7 @@ private func isPastEdgeInset(_ window: Window, _ point: CGPoint, inset: Int) asy
 }
 
 @MainActor
-private func isCoveringFloatingWindow(_ window: Window, _ point: CGPoint, percent: Int) async throws -> Bool {
+private func isCoveringFloatingWindow(_ window: Window, _ point: Point, percent: Int) async throws -> Bool {
     guard percent > 0, window.isFloating, let monitor = window.nodeMonitorInfo else { return false }
     // Inside its frame, the mouse is over a window drawn on top of it (a dialog, a palette), which may take focus
     guard let rect = try await window.getAxRect(.cancellable), !rect.contains(point) else { return false }
