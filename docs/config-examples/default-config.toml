@@ -54,6 +54,10 @@ automatically-unhide-macos-hidden-apps = false
 # Use 'aerospace list-apps' to find app bundle IDs.
 # ignore-focus-from = ['com.logi.pluginservice']
 
+# Skip sticky windows during directional and DFS next/previous focus.
+# Set to false to include sticky windows as ordinary floating windows.
+focus-ignore-sticky-windows = true
+
 # List of workspaces that should stay alive even when they contain no windows,
 # even when they are invisible.
 # This config option is only available since 'config-version = 2'

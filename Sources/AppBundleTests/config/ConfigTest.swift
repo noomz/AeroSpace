@@ -251,6 +251,14 @@ struct ConfigTest {
         )
     }
 
+    @Test func testFocusIgnoreStickyWindows() {
+        let omitted = parseConfig("config-version = 2")
+        #expect(omitted.errors.isEmpty)
+        #expect(omitted.config.focusIgnoreStickyWindows)
+
+        #expect(!parseConfig("focus-ignore-sticky-windows = 'false'").errors.isEmpty)
+    }
+
     @Test func testFocusFollowsMousePinnedApps() {
         let omitted = parseConfig("config-version = 2")
         assertEquals(omitted.errors, [])

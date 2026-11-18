@@ -14,8 +14,12 @@ struct FocusCommand: Command {
         ) {
             return .fail
         }
+        let ignoreSticky = config.focusIgnoreStickyWindows && args.cardinalOrDfsDirection != nil
+        let startsOnSticky = ignoreSticky && target.windowOrNil?.isSticky == true
         // todo bug: floating windows break mru
-        let floatingWindows = args.floatingAsTiling ? await makeFloatingWindowsSeenAsTiling(workspace: target.workspace) : []
+        let floatingWindows = args.floatingAsTiling
+            ? await makeFloatingWindowsSeenAsTiling(workspace: target.workspace, ignoreSticky: ignoreSticky)
+            : []
         defer {
             if args.floatingAsTiling {
                 restoreFloatingWindows(floatingWindows: floatingWindows, workspace: target.workspace)
@@ -24,6 +28,9 @@ struct FocusCommand: Command {
 
         switch args.target {
             case .direction(let direction):
+                if startsOnSticky, let window = target.workspace.findInhabitedLeafWindowRecursive(snappedTo: direction.opposite) {
+                    return .from(bool: window.focusWindow())
+                }
                 let window = target.windowOrNil
                 if let (parent, _, neighborIndex) = window?.closestParent(hasInhabitedChildrenInDirection: direction, withLayout: nil) {
                     guard let windowToFocus = parent.children[neighborIndex]
@@ -50,6 +57,9 @@ struct FocusCommand: Command {
                 }
             case .dfsRelative(let nextPrev):
                 let windows = target.workspace.rootTilingContainer.allInhabitedLeafWindowsRecursive
+                if startsOnSticky, let window = nextPrev == .dfsNext ? windows.first : windows.last {
+                    return .from(bool: window.focusWindow())
+                }
                 guard let currentIndex = windows.firstIndex(where: { $0 == target.windowOrNil }) else {
                     return .fail
                 }
@@ -126,13 +136,13 @@ struct FocusCommand: Command {
     return .from(bool: windowToFocus.focusWindow())
 }
 
-@MainActor private func makeFloatingWindowsSeenAsTiling(workspace: Workspace) async -> [FloatingWindowData] {
+@MainActor private func makeFloatingWindowsSeenAsTiling(workspace: Workspace, ignoreSticky: Bool) async -> [FloatingWindowData] {
     let mruBefore = workspace.mostRecentWindowRecursive
     defer {
         mruBefore?.markAsMostRecentChild()
     }
     var _floatingWindows: [FloatingWindowData] = []
-    for window in workspace.floatingWindows {
+    for window in workspace.floatingWindows where !ignoreSticky || !window.isSticky {
         // todo bug: we shouldn't access ax api here. What if the window was moved but it wasn't committed to ax yet?
         guard let center = try? await window.getCenter(.nonCancellable) else { continue }
 
