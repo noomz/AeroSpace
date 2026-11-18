@@ -33,6 +33,13 @@ The floating window parent container is determined as the smallest tiling contai
 The technique eliminates the need for an additional binding for floating windows.
 This behavior can be disabled with `--ignore-floating` flag.
 
+Directional focus and `dfs-next` or `dfs-prev` skip sticky windows within the workspace by default.
+If a sticky window is already focused, directional focus starts from the opposite edge of the workspace. For example, `focus right` starts from the left.
+In the same situation, `dfs-next` selects the first eligible window and `dfs-prev` selects the last.
+Set `focus-ignore-sticky-windows = false` to include sticky windows as ordinary floating windows.
+`--ignore-floating` still excludes all floating windows, regardless of this setting.
+Direct selection with `--window-id` or `--dfs-index` is unchanged.
+
 `focus child|parent` isn't supported because the necessity of this operation is under the question.
 https://github.com/nikitabobko/AeroSpace/issues/5
 

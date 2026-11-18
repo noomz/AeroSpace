@@ -49,6 +49,7 @@ struct Config: Withable {
     var enableNormalizationOppositeOrientationForNestedContainers: Bool = true
     var persistentWorkspaces: OrderedSet<String> = []
     var ignoreFocusFrom: Set<String> = []
+    var focusIgnoreStickyWindows: Bool = true
     var execOnWorkspaceChange: [String] = [] // todo deprecate
     var keyMapping = KeyMapping()
     var execConfig: ExecConfig = ExecConfig()

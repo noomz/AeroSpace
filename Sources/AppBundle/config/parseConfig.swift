@@ -149,6 +149,7 @@ private let configParser: [String: any ParserProtocol<Config>] = [
     "accordion-padding": Parser(\.accordionPadding, parseInt),
     persistentWorkspacesKey: Parser(\.persistentWorkspaces, parsePersistentWorkspaces),
     "ignore-focus-from": Parser(\.ignoreFocusFrom, parseIgnoreFocusFrom),
+    "focus-ignore-sticky-windows": Parser(\.focusIgnoreStickyWindows, parseBool),
     "exec-on-workspace-change": Parser(\.execOnWorkspaceChange, parseArrayOfStrings),
     "exec": Parser(\.execConfig, parseExecConfig),
 

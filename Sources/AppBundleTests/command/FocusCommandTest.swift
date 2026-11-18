@@ -179,6 +179,72 @@ struct FocusCommandTest {
         assertEquals(globalFocus.windowOrNil?.windowId, 3)
     }
 
+    @Test(arguments: ["right", "dfs-next"])
+    func testRelativeFocusSkipsStickyWindows(direction: String) async {
+        let workspace = Workspace.get(byName: name)
+        let parent = workspace.floatingWindowsContainer
+        let first = TestWindow.new(id: 1, parent: parent, rect: Rect(topLeftX: 0, topLeftY: 0, width: 100, height: 100))
+        let sticky = TestWindow.new(id: 2, parent: parent, rect: Rect(topLeftX: 100, topLeftY: 0, width: 100, height: 100))
+        sticky.isSticky = true
+        let last = TestWindow.new(id: 3, parent: parent, rect: Rect(topLeftX: 200, topLeftY: 0, width: 100, height: 100))
+        #expect(first.focusWindow())
+
+        let result = await parseCommand("focus \(direction)").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        #expect(result.exitCode.rawValue == 0)
+        #expect(globalFocus.windowOrNil == last)
+    }
+
+    @Test func testFocusRightIncludesStickyWindowsWhenConfigured() async {
+        let parsed = parseConfig("focus-ignore-sticky-windows = false")
+        #expect(parsed.errors.isEmpty)
+        config.focusIgnoreStickyWindows = parsed.config.focusIgnoreStickyWindows
+        let parent = Workspace.get(byName: name).floatingWindowsContainer
+        let first = TestWindow.new(id: 1, parent: parent, rect: Rect(topLeftX: 0, topLeftY: 0, width: 100, height: 100))
+        let sticky = TestWindow.new(id: 2, parent: parent, rect: Rect(topLeftX: 100, topLeftY: 0, width: 100, height: 100))
+        sticky.isSticky = true
+        #expect(first.focusWindow())
+
+        let result = await parseCommand("focus right").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        #expect(result.exitCode.rawValue == 0)
+        #expect(globalFocus.windowOrNil == sticky)
+    }
+
+    @Test(arguments: ["dfs-next", "dfs-prev"])
+    func testDfsRelativeCanLeaveAStickyWindow(direction: String) async {
+        let workspace = Workspace.get(byName: name)
+        let first = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
+        let last = TestWindow.new(id: 2, parent: workspace.rootTilingContainer)
+        let sticky = TestWindow.new(id: 3, parent: workspace.floatingWindowsContainer)
+        sticky.isSticky = true
+        #expect(first.focusWindow())
+        #expect(sticky.focusWindow())
+        #expect(globalFocus.workspace == workspace)
+
+        let result = await parseCommand("focus \(direction)").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        #expect(result.exitCode.rawValue == 0)
+        #expect(globalFocus.windowOrNil == (direction == "dfs-next" ? first : last))
+    }
+
+    @Test func testFocusRightCanLeaveAnExplicitlyFocusedStickyWindow() async {
+        let workspace = Workspace.get(byName: name)
+        let tiled = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
+        let sticky = TestWindow.new(id: 2, parent: workspace.floatingWindowsContainer)
+        sticky.isSticky = true
+        #expect(tiled.focusWindow())
+        let summon = await parseCommand("focus --window-id 2").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        #expect(summon.exitCode.rawValue == 0)
+        #expect(globalFocus.windowOrNil == sticky)
+        #expect(globalFocus.workspace == workspace)
+
+        let result = await parseCommand("focus right").cmdOrDie.run(.defaultEnv, .emptyStdin)
+
+        #expect(result.exitCode.rawValue == 0)
+        #expect(globalFocus.windowOrNil == tiled)
+    }
+
     @Test func testFocusAlongTheContainerOrientation() async {
         Workspace.get(byName: name).rootTilingContainer.apply {
             assertEquals(TestWindow.new(id: 1, parent: $0).focusWindow(), true)
